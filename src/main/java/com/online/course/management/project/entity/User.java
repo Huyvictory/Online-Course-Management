@@ -29,7 +29,7 @@ public class User {
     @NotBlank
     @Size(max = 50)
     @Email
-    @Column(unique = true, nullable = false)
+    @Column(unique = true, nullable = false, length = 320)
     private String email;
 
     @NotBlank
