@@ -32,9 +32,9 @@ public class User {
     @Column(unique = true, nullable = false, length = 320)
     private String email;
 
-    @Size(max = 50)
-    @Column(nullable = true)
-    private String name;
+    @Size(max = 100)
+    @Column(name = "real_name", nullable = true)
+    private String realName;
 
     @NotBlank
     @Size(min = 60, max = 60)
