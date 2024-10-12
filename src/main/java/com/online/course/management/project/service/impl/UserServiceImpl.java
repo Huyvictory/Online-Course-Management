@@ -1,8 +1,11 @@
 package com.online.course.management.project.service.impl;
 
+import com.online.course.management.project.dto.UserDTOs;
 import com.online.course.management.project.entity.Role;
 import com.online.course.management.project.entity.User;
 import com.online.course.management.project.enums.RoleType;
+import com.online.course.management.project.exception.ResourceNotFoundException;
+import com.online.course.management.project.mapper.UserMapper;
 import com.online.course.management.project.repository.IRoleRepository;
 import com.online.course.management.project.repository.IUserRepository;
 import com.online.course.management.project.service.interfaces.IUserService;
@@ -14,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -21,29 +25,69 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
+@Slf4j
 public class UserServiceImpl implements IUserService {
 
     private final IUserRepository userRepository;
     private final IRoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
-
+    private final UserMapper userMapper;
 
     @Autowired
-    public UserServiceImpl(IUserRepository userRepository, IRoleRepository roleRepository, PasswordEncoder passwordEncoder) {
+    public UserServiceImpl(IUserRepository userRepository, IRoleRepository roleRepository, PasswordEncoder passwordEncoder, UserMapper userMapper) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.userMapper = userMapper;
     }
 
     @Override
     @Transactional
-    public User registerUser(User user, String roleName) {
-        user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
-        User savedUser = userRepository.save(user);
-        Role role = roleRepository.findByName(RoleType.valueOf(roleName))
-                .orElseThrow(() -> new RuntimeException("Role not found"));
+    public UserDTOs.UserResponseDto registerUser(UserDTOs.UserRegistrationDto registrationDto) {
+        log.info("Registering new user with email: {}", registrationDto.getEmail());
 
-        return savedUser;
+        if (existsByEmail(registrationDto.getEmail())) {
+            throw new IllegalArgumentException("Email already exists");
+        }
+
+        User user = userMapper.toEntity(registrationDto);
+
+        // Generate username from email
+        String username = generateUsernameFromEmail(registrationDto.getEmail());
+        user.setUsername(username);
+
+        user.setPasswordHash(passwordEncoder.encode(registrationDto.getPassword()));
+
+        // Assign default role
+        Role userRole = roleRepository.findByName(RoleType.USER)
+                .orElseThrow(() -> new ResourceNotFoundException("Default user role not found"));
+        user.addRole(userRole);
+
+        User savedUser = userRepository.save(user);
+        log.info("User registered successfully with id: {}", savedUser.getId());
+
+        return userMapper.toDto(savedUser);
+    }
+
+    private String generateUsernameFromEmail(String email) {
+        String username = email.split("@")[0];
+        String baseUsername = username;
+        int suffix = 1;
+
+        while (existsByUsername(username)) {
+            username = baseUsername + suffix;
+            suffix++;
+        }
+
+        return username;
+    }
+
+    @Override
+    public boolean authenticateUser(String usernameOrEmail, String password) {
+        User user = userRepository.findByUsernameOrEmail(usernameOrEmail, usernameOrEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        return passwordEncoder.matches(password, user.getPasswordHash());
     }
 
     @Override

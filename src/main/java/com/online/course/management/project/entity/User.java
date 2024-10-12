@@ -4,17 +4,20 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 @Entity
 @Table(name = "users")
-@Data
+@Getter
+@Setter
 public class User {
 
     @Id
@@ -59,17 +62,22 @@ public class User {
     public void addRole(Role role) {
         UserRole userRole = new UserRole(this, role);
         userRoles.add(userRole);
-        role.getUserRoles().add(userRole);
     }
 
     public void removeRole(Role role) {
-        for (UserRole userRole : new HashSet<>(userRoles)) {
-            if (userRole.getRole().equals(role)) {
-                userRoles.remove(userRole);
-                role.getUserRoles().remove(userRole);
-                userRole.setUser(null);
-                userRole.setRole(null);
-            }
-        }
+        userRoles.removeIf(userRole -> userRole.getRole().equals(role));
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof User)) return false;
+        User user = (User) o;
+        return id != null && Objects.equals(id, user.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 }
