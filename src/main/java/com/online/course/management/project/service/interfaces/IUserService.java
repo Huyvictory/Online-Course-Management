@@ -2,6 +2,7 @@ package com.online.course.management.project.service.interfaces;
 
 import com.online.course.management.project.dto.UserDTOs;
 import com.online.course.management.project.entity.User;
+import com.online.course.management.project.enums.RoleType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -32,7 +33,7 @@ public interface IUserService {
 
     UserDTOs.UserResponseDto updateUserProfile(Long userId, UserDTOs.UpdateProfileDto updateProfileDto);
 
-    void updateUserRoles(Long userId, Set<String> roleNames);
+    Set<String> updateUserRoles(Long userId, Set<RoleType> roleNames, Long currentUserId);
 
     Page<UserDTOs.UserResponseDto> getAllUsers(Pageable pageable);
 }

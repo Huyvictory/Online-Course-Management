@@ -4,6 +4,7 @@ import com.online.course.management.project.dto.UserDTOs;
 import com.online.course.management.project.entity.Role;
 import com.online.course.management.project.entity.User;
 import com.online.course.management.project.enums.RoleType;
+import com.online.course.management.project.exception.ForbiddenException;
 import com.online.course.management.project.exception.ResourceNotFoundException;
 import com.online.course.management.project.mapper.UserMapper;
 import com.online.course.management.project.repository.IRoleRepository;
@@ -111,6 +112,11 @@ public class UserServiceImpl implements IUserService {
         userMapper.updateUserFromDto(user, updateProfileDto);
 
         if (updateProfileDto.getPassword() != null) {
+
+            if (user.getUserRoles().stream().anyMatch(role -> role.getRole().getName() == RoleType.ADMIN)) {
+                throw new ForbiddenException("Can not change password for admin user");
+            }
+
             user.setPasswordHash(passwordEncoder.encode(updateProfileDto.getPassword()));
         }
 
@@ -120,22 +126,56 @@ public class UserServiceImpl implements IUserService {
 
     /**
      * @param userId
-     * @param roleNames
+     * @param newRoles
+     * @param currentUserId
      */
     @Override
-    public void updateUserRoles(Long userId, Set<String> roleNames) {
+    @Transactional
+    public Set<String> updateUserRoles(Long userId, Set<RoleType> newRoles, Long currentUserId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        Set<Role> newRoles = roleNames.stream()
-                .map(name -> roleRepository.findByName(RoleType.valueOf(name))
-                        .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + name)))
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Current user not found"));
+
+        boolean isInitialAdmin = "admin@gmail.com".equals(user.getEmail());
+        boolean isCurrentlyAdmin = user.getUserRoles().stream()
+                .anyMatch(userRole -> userRole.getRole().getName() == RoleType.ADMIN);
+        boolean isAttemptingToAssignAdminRole = newRoles.contains(RoleType.ADMIN);
+
+        // Prevent assigning ADMIN role to non-admin users
+        if (!isCurrentlyAdmin && isAttemptingToAssignAdminRole) {
+            throw new ForbiddenException("Cannot assign ADMIN role to a non-admin user");
+        }
+
+        boolean isRemovingAdminRole = isCurrentlyAdmin && !isAttemptingToAssignAdminRole;
+
+        // Prevent removing ADMIN role from the initial admin account
+        if (isInitialAdmin && isRemovingAdminRole) {
+            throw new ForbiddenException("Cannot remove ADMIN role from the initial admin account");
+        }
+
+        // If the current user is updating their own roles
+        if (userId.equals(currentUserId)) {
+            // Prevent users from removing their own ADMIN role
+            if (isRemovingAdminRole) {
+                throw new ForbiddenException("You cannot remove your own ADMIN role");
+            }
+        }
+
+        Set<Role> rolesToSet = newRoles.stream()
+                .map(roleType -> roleRepository.findByName(roleType)
+                        .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleType)))
                 .collect(Collectors.toSet());
 
         user.getUserRoles().clear();
-        newRoles.forEach(user::addRole);
+        rolesToSet.forEach(user::addRole);
 
         userRepository.save(user);
+
+        return user.getUserRoles().stream()
+                .map(userRole -> userRole.getRole().getName().name())
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -171,7 +211,14 @@ public class UserServiceImpl implements IUserService {
     @Override
     @Transactional
     public void softDeleteUser(Long id) {
+
+
         userRepository.findById(id).ifPresent(user -> {
+
+            if (user.getUserRoles().stream().anyMatch(role -> role.getRole().getName() == RoleType.ADMIN)) {
+                throw new ForbiddenException("Can not delete admin user");
+            }
+
             user.setDeletedAt(LocalDateTime.now());
             userRepository.save(user);
         });

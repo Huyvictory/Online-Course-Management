@@ -1,6 +1,7 @@
 package com.online.course.management.project.dto;
 
 import jakarta.validation.constraints.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.util.Set;
@@ -57,9 +58,6 @@ public class UserDTOs {
 
     @Data
     public static class UpdateUserRolesDto {
-        @NotNull
-        private Long userId;
-
         @NotEmpty
         private Set<String> roles;
     }
@@ -68,5 +66,12 @@ public class UserDTOs {
     public static class JwtResponseDto {
         @NotNull
         private String token;
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class RoleUpdateResponseDto {
+        private String message;
+        private Set<String> updatedRoles;
     }
 }

@@ -1,6 +1,8 @@
 package com.online.course.management.project.controller;
 
 import com.online.course.management.project.dto.UserDTOs;
+import com.online.course.management.project.enums.RoleType;
+import com.online.course.management.project.exception.InvalidRoleInfoException;
 import com.online.course.management.project.mapper.UserMapper;
 import com.online.course.management.project.security.CustomUserDetails;
 import com.online.course.management.project.security.JwtUtil;
@@ -16,7 +18,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.HashSet;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -50,17 +56,17 @@ public class UserController {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(loginDto.getUsernameOrEmail(), loginDto.getPassword())
             );
-            log.info("Authentication successful");
+
 
             CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-            log.info("User details retrieved: {}", userDetails.getUsername());
+
 
             String jwt = jwtUtil.generateToken(userDetails);
-            log.info("JWT token generated successfully");
+
 
             UserDTOs.JwtResponseDto jwtResponseDto = new UserDTOs.JwtResponseDto();
             jwtResponseDto.setToken(jwt);
-            log.info("Returning JWT response");
+
 
             return ResponseEntity.ok(jwtResponseDto);
         } catch (Exception e) {
@@ -78,20 +84,49 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @PutMapping("/{id}/profile")
-    @RequiredRole({"USER"})
-    public ResponseEntity<UserDTOs.UserResponseDto> updateUserProfile(@PathVariable Long id, @Valid @RequestBody UserDTOs.UpdateProfileDto updateProfileDto) {
-        log.info("Updating profile for user id: {}", id);
-        UserDTOs.UserResponseDto updatedUser = userService.updateUserProfile(id, updateProfileDto);
+    @PutMapping("/profile")
+    public ResponseEntity<UserDTOs.UserResponseDto> updateUserProfile(@Valid @RequestBody UserDTOs.UpdateProfileDto updateProfileDto) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        Long userId = userDetails.getId();
+
+        log.info("Updating profile for user id: {}", userId);
+        UserDTOs.UserResponseDto updatedUser = userService.updateUserProfile(userId, updateProfileDto);
         return ResponseEntity.ok(updatedUser);
     }
 
     @PutMapping("/{id}/roles")
     @RequiredRole({"ADMIN"})
-    public ResponseEntity<Void> updateUserRoles(@PathVariable Long id, @Valid @RequestBody UserDTOs.UpdateUserRolesDto updateUserRolesDto) {
+    public ResponseEntity<UserDTOs.RoleUpdateResponseDto> updateUserRoles(@PathVariable Long id, @Valid @RequestBody UserDTOs.UpdateUserRolesDto updateUserRolesDto) {
         log.info("Updating roles for user id: {}", id);
-        userService.updateUserRoles(id, updateUserRolesDto.getRoles());
-        return ResponseEntity.ok().build();
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails currentUser = (CustomUserDetails) authentication.getPrincipal();
+
+        Set<RoleType> validRoles = new HashSet<>();
+        Set<String> invalidRoles = new HashSet<>();
+
+        for (String role : updateUserRolesDto.getRoles()) {
+            try {
+                validRoles.add(RoleType.valueOf(role.toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                invalidRoles.add(role);
+            }
+        }
+
+        if (!invalidRoles.isEmpty()) {
+            throw new InvalidRoleInfoException("Invalid role(s) provided: " + String.join(", ", invalidRoles));
+        }
+
+
+
+        var updatedRoles = userService.updateUserRoles(id, validRoles, currentUser.getId());
+
+        UserDTOs.RoleUpdateResponseDto responseDto = new UserDTOs.RoleUpdateResponseDto(
+                "Roles updated successfully",
+                updatedRoles
+        );
+        return ResponseEntity.ok().body(responseDto);
     }
 
     @GetMapping("/all")
