@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.Set;
 
 public interface IUserService {
     UserDTOs.UserResponseDto registerUser(UserDTOs.UserRegistrationDto userRegistrationDto);
@@ -28,4 +29,10 @@ public interface IUserService {
     boolean existsByEmail(String email);
 
     boolean authenticateUser(String usernameOrEmail, String password);
+
+    UserDTOs.UserResponseDto updateUserProfile(Long userId, UserDTOs.UpdateProfileDto updateProfileDto);
+
+    void updateUserRoles(Long userId, Set<String> roleNames);
+
+    Page<UserDTOs.UserResponseDto> getAllUsers(Pageable pageable);
 }

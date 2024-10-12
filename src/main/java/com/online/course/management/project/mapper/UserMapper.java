@@ -21,4 +21,17 @@ public class UserMapper {
         dto.setRealName(user.getRealName());
         return dto;
     }
+
+    public void updateUserFromDto(User user, UserDTOs.UpdateProfileDto dto) {
+        if (dto.getUsername() != null) {
+            user.setUsername(dto.getUsername());
+        }
+        if (dto.getEmail() != null) {
+            user.setEmail(dto.getEmail());
+        }
+        if (dto.getRealName() != null) {
+            user.setRealName(dto.getRealName());
+        }
+
+    }
 }

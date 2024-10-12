@@ -23,6 +23,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -46,32 +48,37 @@ public class UserServiceImpl implements IUserService {
     public UserDTOs.UserResponseDto registerUser(UserDTOs.UserRegistrationDto registrationDto) {
         log.info("Registering new user with email: {}", registrationDto.getEmail());
 
-        if (existsByEmail(registrationDto.getEmail())) {
-            throw new IllegalArgumentException("Email already exists");
-        }
-
-        User user = userMapper.toEntity(registrationDto);
-
-        // Generate username from email
-        String username = generateUsernameFromEmail(registrationDto.getEmail());
-        user.setUsername(username);
-
-        user.setPasswordHash(passwordEncoder.encode(registrationDto.getPassword()));
-
-        // Assign default role
-        Role userRole = roleRepository.findByName(RoleType.USER)
-                .orElseThrow(() -> new ResourceNotFoundException("Default user role not found"));
-        user.addRole(userRole);
-
+        validateNewUser(registrationDto);
+        User user = createUserFromDto(registrationDto);
+        assignDefaultRole(user);
         User savedUser = userRepository.save(user);
-        log.info("User registered successfully with id: {}", savedUser.getId());
 
+        log.info("User registered successfully with id: {}", savedUser.getId());
         return userMapper.toDto(savedUser);
     }
 
+    private void validateNewUser(UserDTOs.UserRegistrationDto registrationDto) {
+        if (existsByEmail(registrationDto.getEmail())) {
+            throw new IllegalArgumentException("Email already exists");
+        }
+    }
+
+    private User createUserFromDto(UserDTOs.UserRegistrationDto registrationDto) {
+        User user = userMapper.toEntity(registrationDto);
+        user.setUsername(generateUsernameFromEmail(registrationDto.getEmail()));
+        user.setPasswordHash(passwordEncoder.encode(registrationDto.getPassword()));
+        return user;
+    }
+
+    private void assignDefaultRole(User user) {
+        Role userRole = roleRepository.findByName(RoleType.USER)
+                .orElseThrow(() -> new ResourceNotFoundException("Default user role not found"));
+        user.addRole(userRole);
+    }
+
     private String generateUsernameFromEmail(String email) {
-        String username = email.split("@")[0];
-        String baseUsername = username;
+        String baseUsername = email.split("@")[0];
+        String username = baseUsername;
         int suffix = 1;
 
         while (existsByUsername(username)) {
@@ -88,6 +95,56 @@ public class UserServiceImpl implements IUserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         return passwordEncoder.matches(password, user.getPasswordHash());
+    }
+
+    /**
+     * @param userId
+     * @param updateProfileDto
+     * @return
+     */
+    @Override
+    @Transactional
+    public UserDTOs.UserResponseDto updateUserProfile(Long userId, UserDTOs.UpdateProfileDto updateProfileDto) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        userMapper.updateUserFromDto(user, updateProfileDto);
+
+        if (updateProfileDto.getPassword() != null) {
+            user.setPasswordHash(passwordEncoder.encode(updateProfileDto.getPassword()));
+        }
+
+        User updatedUser = userRepository.save(user);
+        return userMapper.toDto(updatedUser);
+    }
+
+    /**
+     * @param userId
+     * @param roleNames
+     */
+    @Override
+    public void updateUserRoles(Long userId, Set<String> roleNames) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Set<Role> newRoles = roleNames.stream()
+                .map(name -> roleRepository.findByName(RoleType.valueOf(name))
+                        .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + name)))
+                .collect(Collectors.toSet());
+
+        user.getUserRoles().clear();
+        newRoles.forEach(user::addRole);
+
+        userRepository.save(user);
+    }
+
+    /**
+     * @param pageable
+     * @return
+     */
+    @Override
+    public Page<UserDTOs.UserResponseDto> getAllUsers(Pageable pageable) {
+        return userRepository.findAll(pageable).map(userMapper::toDto);
     }
 
     @Override

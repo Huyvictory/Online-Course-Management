@@ -19,11 +19,11 @@ public class UserRole {
     @EmbeddedId
     private UserRoleId id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @MapsId("userId")
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @MapsId("roleId")
     private Role role;
 
@@ -40,8 +40,7 @@ public class UserRole {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof UserRole)) return false;
-        UserRole userRole = (UserRole) o;
+        if (!(o instanceof UserRole userRole)) return false;
         return Objects.equals(user.getId(), userRole.user.getId()) &&
                 Objects.equals(role.getId(), userRole.role.getId());
     }
