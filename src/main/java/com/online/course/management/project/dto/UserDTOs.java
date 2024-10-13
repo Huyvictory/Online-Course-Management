@@ -68,6 +68,7 @@ public class UserDTOs {
     }
 
     @Data
+    @AllArgsConstructor
     public static class JwtResponseDto {
         @NotNull
         private String token;
