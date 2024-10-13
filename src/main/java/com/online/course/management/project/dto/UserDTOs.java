@@ -3,7 +3,9 @@ package com.online.course.management.project.dto;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
 
+import java.time.LocalDateTime;
 import java.util.Set;
 
 public class UserDTOs {
@@ -38,6 +40,7 @@ public class UserDTOs {
         private String username;
         private String email;
         private String realName;
+        private String status;
     }
 
     @Data
@@ -54,6 +57,8 @@ public class UserDTOs {
 
         @Size(min = 6, max = 40)
         private String password;
+
+        private String status;
     }
 
     @Data
@@ -73,5 +78,36 @@ public class UserDTOs {
     public static class RoleUpdateResponseDto {
         private String message;
         private Set<String> updatedRoles;
+    }
+
+    @Data
+    public static class UserWithRolesResponseDto {
+        private Long id;
+        private String username;
+        private String email;
+        private String realName;
+        private String status;
+        private Set<String> roles;
+    }
+
+    @Data
+    public static class UserSearchRequestDto {
+        @Size(max = 50)
+        private String username;
+
+        @Size(max = 50)
+        @Email
+        private String email;
+
+        @Size(max = 100)
+        private String realName;
+
+        private String status;
+
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+        private LocalDateTime fromDate;
+
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+        private LocalDateTime toDate;
     }
 }

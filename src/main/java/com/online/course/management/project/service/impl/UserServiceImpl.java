@@ -4,6 +4,7 @@ import com.online.course.management.project.dto.UserDTOs;
 import com.online.course.management.project.entity.Role;
 import com.online.course.management.project.entity.User;
 import com.online.course.management.project.enums.RoleType;
+import com.online.course.management.project.enums.UserStatus;
 import com.online.course.management.project.exception.ForbiddenException;
 import com.online.course.management.project.exception.ResourceNotFoundException;
 import com.online.course.management.project.mapper.UserMapper;
@@ -183,8 +184,54 @@ public class UserServiceImpl implements IUserService {
      * @return
      */
     @Override
-    public Page<UserDTOs.UserResponseDto> getAllUsers(Pageable pageable) {
-        return userRepository.findAll(pageable).map(userMapper::toDto);
+    public Page<UserDTOs.UserWithRolesResponseDto> getAllUsers(Pageable pageable) {
+        Page<User> users = userRepository.findAll(pageable);
+        return users.map(userMapper::toUserWithRolesDto);
+    }
+
+    private Specification<User> createSpecification(UserDTOs.UserSearchRequestDto searchUsersPayload) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (searchUsersPayload.getUsername() != null && !searchUsersPayload.getUsername().isEmpty()) {
+                predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("username")), "%" + searchUsersPayload.getUsername().toLowerCase() + "%"));
+            }
+            if (searchUsersPayload.getEmail() != null && !searchUsersPayload.getEmail().isEmpty()) {
+                predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("email")), "%" + searchUsersPayload.getEmail().toLowerCase() + "%"));
+            }
+            if (searchUsersPayload.getRealName() != null && !searchUsersPayload.getRealName().isEmpty()) {
+                predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("realName")), "%" + searchUsersPayload.getRealName().toLowerCase() + "%"));
+            }
+            if (searchUsersPayload.getStatus() != null && !searchUsersPayload.getStatus().isEmpty()) {
+                predicates.add(criteriaBuilder.equal(root.get("status"), UserStatus.valueOf(searchUsersPayload.getStatus().toUpperCase())));
+            }
+            if (searchUsersPayload.getFromDate() != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("createdAt"), searchUsersPayload.getFromDate()));
+            }
+            if (searchUsersPayload.getToDate() != null) {
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("createdAt"), searchUsersPayload.getToDate()));
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+
+    @Override
+    public Page<UserDTOs.UserWithRolesResponseDto> searchUsers(UserDTOs.UserSearchRequestDto searchUsersPayload, Pageable pageable) {
+        Specification<User> querySpecification = createSpecification(searchUsersPayload);
+
+        Page<User> users = userRepository.findAll(querySpecification, pageable);
+        return users.map(userMapper::toUserWithRolesDto);
+    }
+
+    @Override
+    public long countUsers(Optional<UserDTOs.UserSearchRequestDto> searchUsersPayload) {
+        if (searchUsersPayload.isPresent()) {
+            Specification<User> querySpecification = createSpecification(searchUsersPayload.get());
+            return userRepository.count(querySpecification);
+        } else {
+            return userRepository.count();
+        }
     }
 
     @Override
@@ -222,37 +269,6 @@ public class UserServiceImpl implements IUserService {
             user.setDeletedAt(LocalDateTime.now());
             userRepository.save(user);
         });
-    }
-
-    @Override
-    public Page<User> searchUsers(String username, String name, String status, LocalDateTime fromDate, LocalDateTime toDate, Pageable pageable) {
-        Specification<User> spec = (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-
-            if (username != null && !username.isEmpty()) {
-                predicates.add(criteriaBuilder.like(root.get("username"), "%" + username + "%"));
-            }
-            if (name != null && !name.isEmpty()) {
-                predicates.add(criteriaBuilder.like(root.get("name"), "%" + name + "%"));
-            }
-            if (status != null && !status.isEmpty()) {
-                if (status.equalsIgnoreCase("active")) {
-                    predicates.add(criteriaBuilder.isNull(root.get("deletedAt")));
-                } else if (status.equalsIgnoreCase("inactive")) {
-                    predicates.add(criteriaBuilder.isNotNull(root.get("deletedAt")));
-                }
-            }
-            if (fromDate != null) {
-                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("createdAt"), fromDate));
-            }
-            if (toDate != null) {
-                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("createdAt"), toDate));
-            }
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
-        };
-
-        return userRepository.findAll(spec, pageable);
     }
 
     @Override

@@ -23,8 +23,6 @@ public interface IUserService {
 
     void softDeleteUser(Long id);
 
-    Page<User> searchUsers(String username, String name, String status, LocalDateTime fromDate, LocalDateTime toDate, Pageable pageable);
-
     boolean existsByUsername(String username);
 
     boolean existsByEmail(String email);
@@ -35,5 +33,12 @@ public interface IUserService {
 
     Set<String> updateUserRoles(Long userId, Set<RoleType> roleNames, Long currentUserId);
 
-    Page<UserDTOs.UserResponseDto> getAllUsers(Pageable pageable);
+    Page<UserDTOs.UserWithRolesResponseDto> getAllUsers(Pageable pageable);
+
+    Page<UserDTOs.UserWithRolesResponseDto> searchUsers(
+            UserDTOs.UserSearchRequestDto searchUsersPayload,
+            Pageable pageable
+    );
+
+    long countUsers(Optional<UserDTOs.UserSearchRequestDto> searchUsersPayload);
 }

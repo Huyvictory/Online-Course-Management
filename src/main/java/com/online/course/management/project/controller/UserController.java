@@ -1,5 +1,6 @@
 package com.online.course.management.project.controller;
 
+import com.online.course.management.project.dto.PaginationDto;
 import com.online.course.management.project.dto.UserDTOs;
 import com.online.course.management.project.enums.RoleType;
 import com.online.course.management.project.exception.InvalidRoleInfoException;
@@ -12,6 +13,7 @@ import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +24,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 @RestController
@@ -119,7 +122,6 @@ public class UserController {
         }
 
 
-
         var updatedRoles = userService.updateUserRoles(id, validRoles, currentUser.getId());
 
         UserDTOs.RoleUpdateResponseDto responseDto = new UserDTOs.RoleUpdateResponseDto(
@@ -131,10 +133,48 @@ public class UserController {
 
     @GetMapping("/all")
     @RequiredRole({"ADMIN"})
-    public ResponseEntity<Page<UserDTOs.UserResponseDto>> getAllUsers(Pageable pageable) {
-        log.info("Fetching all users");
-        Page<UserDTOs.UserResponseDto> users = userService.getAllUsers(pageable);
-        return ResponseEntity.ok(users);
+    public ResponseEntity<PaginationDto.PaginationResponseDto> getAllUsers(@Valid PaginationDto.PaginationRequestDto paginationRequestDto) {
+        int page = paginationRequestDto.getPage();
+        int limit = paginationRequestDto.getLimit();
+
+        log.info("Fetching all users with roles, page: {}, limit: {}", page, limit);
+
+
+        Pageable pageable = PageRequest.of(page - 1, limit);
+        Page<UserDTOs.UserWithRolesResponseDto> users = userService.getAllUsers(paginationRequestDto.toPageable());
+        long totalUsers = userService.countUsers(Optional.empty());
+
+        PaginationDto.PaginationResponseDto<UserDTOs.UserWithRolesResponseDto> response = new PaginationDto.PaginationResponseDto<>(
+                users.getContent(),
+                users.getNumber() + 1,
+                users.getSize(),
+                totalUsers
+        );
+
+        return ResponseEntity.ok().body(response);
+    }
+
+    @GetMapping("/search")
+    @RequiredRole({"ADMIN"})
+    public ResponseEntity<PaginationDto.PaginationResponseDto<UserDTOs.UserWithRolesResponseDto>> searchUsers(
+            @Valid UserDTOs.UserSearchRequestDto searchRequest,
+            @Valid PaginationDto.PaginationRequestDto paginationRequest) {
+
+        log.info("Searching users with criteria: {}, page: {}, size: {}",
+                searchRequest, paginationRequest.getPage(), paginationRequest.getLimit());
+
+        Page<UserDTOs.UserWithRolesResponseDto> usersPage = userService.searchUsers(
+                searchRequest, paginationRequest.toPageable());
+        long totalSearchedUsers = userService.countUsers(Optional.of(searchRequest));
+
+        PaginationDto.PaginationResponseDto<UserDTOs.UserWithRolesResponseDto> response = new PaginationDto.PaginationResponseDto<>(
+                usersPage.getContent(),
+                usersPage.getNumber() + 1,
+                usersPage.getSize(),
+                totalSearchedUsers
+        );
+
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{id}")

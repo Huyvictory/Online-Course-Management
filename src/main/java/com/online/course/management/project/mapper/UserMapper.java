@@ -2,7 +2,11 @@ package com.online.course.management.project.mapper;
 
 import com.online.course.management.project.dto.UserDTOs;
 import com.online.course.management.project.entity.User;
+import com.online.course.management.project.entity.UserRole;
+import com.online.course.management.project.enums.UserStatus;
 import org.springframework.stereotype.Component;
+
+import java.util.stream.Collectors;
 
 @Component
 public class UserMapper {
@@ -10,6 +14,7 @@ public class UserMapper {
     public User toEntity(UserDTOs.UserRegistrationDto dto) {
         User user = new User();
         user.setEmail(dto.getEmail());
+        user.setStatus(UserStatus.ACTIVE); // Set default status
         return user;
     }
 
@@ -19,6 +24,21 @@ public class UserMapper {
         dto.setUsername(user.getUsername());
         dto.setEmail(user.getEmail());
         dto.setRealName(user.getRealName());
+        dto.setStatus(user.getStatus().name());
+        return dto;
+    }
+
+    public UserDTOs.UserWithRolesResponseDto toUserWithRolesDto(User user) {
+        UserDTOs.UserWithRolesResponseDto dto = new UserDTOs.UserWithRolesResponseDto();
+        dto.setId(user.getId());
+        dto.setUsername(user.getUsername());
+        dto.setEmail(user.getEmail());
+        dto.setRealName(user.getRealName());
+        dto.setStatus(user.getStatus().name());
+        dto.setRoles(user.getUserRoles().stream()
+                .map(UserRole::getRole)
+                .map(role -> role.getName().name())
+                .collect(Collectors.toSet()));
         return dto;
     }
 
