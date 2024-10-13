@@ -27,8 +27,6 @@ public interface IUserService {
 
     boolean existsByEmail(String email);
 
-    boolean authenticateUser(String usernameOrEmail, String password);
-
     UserDTOs.UserResponseDto updateUserProfile(Long userId, UserDTOs.UpdateProfileDto updateProfileDto);
 
     Set<String> updateUserRoles(Long userId, Set<RoleType> roleNames, Long currentUserId);

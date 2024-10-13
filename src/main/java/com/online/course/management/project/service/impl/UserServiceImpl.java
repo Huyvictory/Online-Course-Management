@@ -11,9 +11,12 @@ import com.online.course.management.project.mapper.UserMapper;
 import com.online.course.management.project.repository.IRoleRepository;
 import com.online.course.management.project.repository.IUserRepository;
 import com.online.course.management.project.service.interfaces.IUserService;
+import com.online.course.management.project.utils.UserServiceUtils;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -36,68 +39,30 @@ public class UserServiceImpl implements IUserService {
     private final IRoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
+    private final UserServiceUtils userServiceUtils;
 
     @Autowired
-    public UserServiceImpl(IUserRepository userRepository, IRoleRepository roleRepository, PasswordEncoder passwordEncoder, UserMapper userMapper) {
+    public UserServiceImpl(IUserRepository userRepository, IRoleRepository roleRepository, PasswordEncoder passwordEncoder, UserMapper userMapper, UserServiceUtils userServiceUtils) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.userMapper = userMapper;
+        this.userServiceUtils = userServiceUtils;
     }
 
     @Override
     @Transactional
     public UserDTOs.UserResponseDto registerUser(UserDTOs.UserRegistrationDto registrationDto) {
         log.info("Registering new user with email: {}", registrationDto.getEmail());
-
-        validateNewUser(registrationDto);
-        User user = createUserFromDto(registrationDto);
-        assignDefaultRole(user);
+        userServiceUtils.validateNewUser(registrationDto);
+        User user = userServiceUtils.createUserFromDto(registrationDto);
+        userServiceUtils.assignDefaultRole(user);
         User savedUser = userRepository.save(user);
 
         log.info("User registered successfully with id: {}", savedUser.getId());
         return userMapper.toDto(savedUser);
     }
 
-    private void validateNewUser(UserDTOs.UserRegistrationDto registrationDto) {
-        if (existsByEmail(registrationDto.getEmail())) {
-            throw new IllegalArgumentException("Email already exists");
-        }
-    }
-
-    private User createUserFromDto(UserDTOs.UserRegistrationDto registrationDto) {
-        User user = userMapper.toEntity(registrationDto);
-        user.setUsername(generateUsernameFromEmail(registrationDto.getEmail()));
-        user.setPasswordHash(passwordEncoder.encode(registrationDto.getPassword()));
-        return user;
-    }
-
-    private void assignDefaultRole(User user) {
-        Role userRole = roleRepository.findByName(RoleType.USER)
-                .orElseThrow(() -> new ResourceNotFoundException("Default user role not found"));
-        user.addRole(userRole);
-    }
-
-    private String generateUsernameFromEmail(String email) {
-        String baseUsername = email.split("@")[0];
-        String username = baseUsername;
-        int suffix = 1;
-
-        while (existsByUsername(username)) {
-            username = baseUsername + suffix;
-            suffix++;
-        }
-
-        return username;
-    }
-
-    @Override
-    public boolean authenticateUser(String usernameOrEmail, String password) {
-        User user = userRepository.findByUsernameOrEmail(usernameOrEmail, usernameOrEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        return passwordEncoder.matches(password, user.getPasswordHash());
-    }
 
     /**
      * @param userId
@@ -110,7 +75,7 @@ public class UserServiceImpl implements IUserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        userMapper.updateUserFromDto(user, updateProfileDto);
+        userMapper.updateUserFromDto(updateProfileDto, user);
 
         if (updateProfileDto.getPassword() != null) {
 
@@ -189,36 +154,10 @@ public class UserServiceImpl implements IUserService {
         return users.map(userMapper::toUserWithRolesDto);
     }
 
-    private Specification<User> createSpecification(UserDTOs.UserSearchRequestDto searchUsersPayload) {
-        return (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-
-            if (searchUsersPayload.getUsername() != null && !searchUsersPayload.getUsername().isEmpty()) {
-                predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("username")), "%" + searchUsersPayload.getUsername().toLowerCase() + "%"));
-            }
-            if (searchUsersPayload.getEmail() != null && !searchUsersPayload.getEmail().isEmpty()) {
-                predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("email")), "%" + searchUsersPayload.getEmail().toLowerCase() + "%"));
-            }
-            if (searchUsersPayload.getRealName() != null && !searchUsersPayload.getRealName().isEmpty()) {
-                predicates.add(criteriaBuilder.like(criteriaBuilder.lower(root.get("realName")), "%" + searchUsersPayload.getRealName().toLowerCase() + "%"));
-            }
-            if (searchUsersPayload.getStatus() != null && !searchUsersPayload.getStatus().isEmpty()) {
-                predicates.add(criteriaBuilder.equal(root.get("status"), UserStatus.valueOf(searchUsersPayload.getStatus().toUpperCase())));
-            }
-            if (searchUsersPayload.getFromDate() != null) {
-                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("createdAt"), searchUsersPayload.getFromDate()));
-            }
-            if (searchUsersPayload.getToDate() != null) {
-                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("createdAt"), searchUsersPayload.getToDate()));
-            }
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
-        };
-    }
 
     @Override
     public Page<UserDTOs.UserWithRolesResponseDto> searchUsers(UserDTOs.UserSearchRequestDto searchUsersPayload, Pageable pageable) {
-        Specification<User> querySpecification = createSpecification(searchUsersPayload);
+        Specification<User> querySpecification = userServiceUtils.createSpecification(searchUsersPayload);
 
         Page<User> users = userRepository.findAll(querySpecification, pageable);
         return users.map(userMapper::toUserWithRolesDto);
@@ -227,7 +166,7 @@ public class UserServiceImpl implements IUserService {
     @Override
     public long countUsers(Optional<UserDTOs.UserSearchRequestDto> searchUsersPayload) {
         if (searchUsersPayload.isPresent()) {
-            Specification<User> querySpecification = createSpecification(searchUsersPayload.get());
+            Specification<User> querySpecification = userServiceUtils.createSpecification(searchUsersPayload.get());
             return userRepository.count(querySpecification);
         } else {
             return userRepository.count();
@@ -235,7 +174,9 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
+    @Cacheable(value = "users", key = "#id")
     public Optional<User> getUserById(Long id) {
+        log.debug("Fetching user with id: {}", id);
         return userRepository.findById(id);
     }
 
@@ -251,7 +192,9 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "users", key = "#user.id")
     public User updateUser(User user) {
+        log.info("Updating user with id: {}", user.getId());
         return userRepository.save(user);
     }
 
