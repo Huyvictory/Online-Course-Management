@@ -2,7 +2,6 @@ package com.online.course.management.project.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.online.course.management.project.dto.ErrorResponseDTO;
-import com.online.course.management.project.exception.UnauthorizedException;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

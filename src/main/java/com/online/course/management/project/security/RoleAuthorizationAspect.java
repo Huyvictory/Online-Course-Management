@@ -1,7 +1,7 @@
 package com.online.course.management.project.security;
 
-import com.online.course.management.project.exception.ForbiddenException;
-import com.online.course.management.project.exception.UnauthorizedException;
+import com.online.course.management.project.exception.business.ForbiddenException;
+import com.online.course.management.project.exception.business.UnauthorizedException;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;

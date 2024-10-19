@@ -4,8 +4,8 @@ import com.online.course.management.project.dto.UserDTOs;
 import com.online.course.management.project.entity.Role;
 import com.online.course.management.project.entity.User;
 import com.online.course.management.project.enums.RoleType;
-import com.online.course.management.project.exception.ForbiddenException;
-import com.online.course.management.project.exception.ResourceNotFoundException;
+import com.online.course.management.project.exception.business.ForbiddenException;
+import com.online.course.management.project.exception.business.ResourceNotFoundException;
 import com.online.course.management.project.mapper.UserMapper;
 import com.online.course.management.project.repository.IRoleRepository;
 import com.online.course.management.project.repository.IUserRepository;
@@ -118,11 +118,10 @@ public class UserServiceImpl implements IUserService {
         }
 
         // If the current user is updating their own roles
-        if (userId.equals(currentUserId)) {
+        if (userId.equals(currentUserId) && isRemovingAdminRole) {
             // Prevent users from removing their own ADMIN role
-            if (isRemovingAdminRole) {
-                throw new ForbiddenException("You cannot remove your own ADMIN role");
-            }
+            throw new ForbiddenException("You cannot remove your own ADMIN role");
+
         }
 
         Set<Role> rolesToSet = newRoles.stream()

@@ -5,26 +5,20 @@ import com.online.course.management.project.entity.Role;
 import com.online.course.management.project.entity.User;
 import com.online.course.management.project.enums.RoleType;
 import com.online.course.management.project.enums.UserStatus;
-import com.online.course.management.project.exception.InvalidRoleInfoException;
-import com.online.course.management.project.exception.ResourceNotFoundException;
-import com.online.course.management.project.exception.UnauthorizedException;
+import com.online.course.management.project.exception.business.account.AccountException;
+import com.online.course.management.project.exception.business.ResourceNotFoundException;
+import com.online.course.management.project.exception.business.account.EmailAlreadyExistsException;
 import com.online.course.management.project.mapper.UserMapper;
 import com.online.course.management.project.repository.IRoleRepository;
 import com.online.course.management.project.repository.IUserRepository;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 @Component
 @Slf4j
@@ -33,14 +27,14 @@ public class UserServiceUtils {
     private final IRoleRepository roleRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
-    private final AuthenticationManager authenticationManager;
 
-    public UserServiceUtils(IUserRepository userRepository, IRoleRepository roleRepository, UserMapper userMapper, PasswordEncoder passwordEncoder, AuthenticationManager authenticationManager) {
+
+    public UserServiceUtils(IUserRepository userRepository, IRoleRepository roleRepository, UserMapper userMapper, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
-        this.authenticationManager = authenticationManager;
+
     }
 
     public String generateUsernameFromEmail(String email) {
@@ -64,7 +58,7 @@ public class UserServiceUtils {
 
     public void validateNewUser(UserDTOs.UserRegistrationDto registrationDto) {
         if (userRepository.existsByEmail(registrationDto.getEmail())) {
-            throw new IllegalArgumentException("Email already exists");
+            throw new EmailAlreadyExistsException("Email already exists: " + registrationDto.getEmail());
         }
     }
 

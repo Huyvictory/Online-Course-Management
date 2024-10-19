@@ -1,8 +1,10 @@
 package com.online.course.management.project.utils.user;
 
 import com.online.course.management.project.enums.RoleType;
-import com.online.course.management.project.exception.InvalidRoleInfoException;
-import com.online.course.management.project.exception.UnauthorizedException;
+import com.online.course.management.project.exception.business.InvalidRoleInfoException;
+import com.online.course.management.project.exception.business.UnauthorizedException;
+import com.online.course.management.project.exception.business.account.EmailAlreadyExistsException;
+import com.online.course.management.project.exception.business.account.WrongEmailPasswordException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -29,7 +31,7 @@ public class UserControllerUtils {
                     new UsernamePasswordAuthenticationToken(usernameOrEmail, password));
         } catch (AuthenticationException e) {
             log.error("Error during authentication", e);
-            throw new UnauthorizedException("Invalid username/email or password");
+            throw new WrongEmailPasswordException("Invalid username/email or password");
         }
     }
 

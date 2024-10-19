@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
+
 import java.util.Optional;
 
 @Repository
@@ -22,7 +22,6 @@ public interface IUserRepository extends JpaRepository<User, Long>, JpaSpecifica
 
     boolean existsByEmail(String email);
 
-    List<User> findByDeletedAtIsNull();
 
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.userRoles WHERE u.username = :username OR u.email = :email")
     Optional<User> findByUsernameOrEmailWithRoles(@Param("username") String username, @Param("email") String email);
