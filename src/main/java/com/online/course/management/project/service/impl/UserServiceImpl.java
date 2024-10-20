@@ -60,11 +60,6 @@ public class UserServiceImpl implements IUserService {
     }
 
 
-    /**
-     * @param userId
-     * @param updateProfileDto
-     * @return
-     */
     @Override
     @Transactional
     public UserDTOs.UserResponseDto updateUserProfile(Long userId, UserDTOs.UpdateProfileDto updateProfileDto) {
@@ -94,11 +89,12 @@ public class UserServiceImpl implements IUserService {
     @Override
     @Transactional
     public Set<String> updateUserRoles(Long userId, Set<RoleType> newRoles, Long currentUserId) {
+
+        log.info("Updating roles for user {}. New roles: {}", userId, newRoles);
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Current user not found"));
 
         boolean isInitialAdmin = "admin@gmail.com".equals(user.getEmail());
         boolean isCurrentlyAdmin = user.getUserRoles().stream()
@@ -129,14 +125,26 @@ public class UserServiceImpl implements IUserService {
                         .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleType)))
                 .collect(Collectors.toSet());
 
+        // log old roles of user
+        log.info("Current user roles: {}", user.getUserRoles().stream()
+                .map(ur -> ur.getRole().getName().name())
+                .collect(Collectors.toSet()));
+
+        // Clear existing roles and add new ones
         user.getUserRoles().clear();
-        rolesToSet.forEach(user::addRole);
+        for (Role role : rolesToSet) {
+            user.addRole(role);
+        }
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
 
-        return user.getUserRoles().stream()
+        // Log the roles after saving
+        Set<String> updatedRoles = savedUser.getUserRoles().stream()
                 .map(userRole -> userRole.getRole().getName().name())
                 .collect(Collectors.toSet());
+        log.info("Updated roles for user {}: {}", userId, updatedRoles);
+
+        return updatedRoles;
     }
 
     /**
