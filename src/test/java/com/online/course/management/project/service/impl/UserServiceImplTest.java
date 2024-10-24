@@ -133,7 +133,6 @@ public class UserServiceImplTest {
         adminUser.addRole(adminRole);
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(initialAdminUser));
-//        when(userRepository.findById(currentUserId)).thenReturn(Optional.of(adminUser));
 
         assertThrows(ForbiddenException.class, () -> userService.updateUserRoles(userId, newRoles, currentUserId));
     }

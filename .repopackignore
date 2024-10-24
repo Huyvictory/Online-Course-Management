@@ -3,7 +3,6 @@
 # *.log
 # tmp/
 
-test
 target
 mvnw
 mvnw.cmd
