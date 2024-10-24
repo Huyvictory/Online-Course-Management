@@ -11,11 +11,9 @@ import com.online.course.management.project.enums.RoleType;
 import com.online.course.management.project.mapper.UserMapper;
 import com.online.course.management.project.security.CustomUserDetails;
 import com.online.course.management.project.security.CustomUserDetailsService;
-import com.online.course.management.project.security.JwtAuthenticationEntryPoint;
 import com.online.course.management.project.security.JwtUtil;
 import com.online.course.management.project.service.interfaces.IUserService;
 import com.online.course.management.project.utils.user.UserControllerUtils;
-import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,12 +23,10 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.test.context.support.WithMockUser;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
@@ -82,22 +78,6 @@ class UserControllerTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
-    }
-
-    private Authentication buildAuthenticationWithRole(String role) {
-        User mockUser = new User();
-        mockUser.setId(1L);
-        mockUser.setUsername(role.toLowerCase());
-        mockUser.setEmail(role.toLowerCase() + "@example.com");
-
-        Collection<GrantedAuthority> authorities =
-                Collections.singleton(new SimpleGrantedAuthority("ROLE_" + role));
-
-        return new UsernamePasswordAuthenticationToken(
-                new CustomUserDetails(mockUser),
-                null,
-                authorities
-        );
     }
 
     private ResultActions performDeleteWithRole(Long userId, String roleType) throws Exception {
@@ -270,7 +250,6 @@ class UserControllerTest {
     @Test
     void getAllUsers_Success() throws Exception {
         // Arrange
-        Long userId = 1L;
 
         Role adminRole = new Role();
         adminRole.setName(RoleType.ADMIN);
