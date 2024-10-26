@@ -119,16 +119,26 @@ def generate_courses(num_courses, instructor_ids):
                 break
 
         created_at, updated_at = generate_random_dates()
+        status = random.choice(['DRAFT', 'PUBLISHED', 'ARCHIVED'])
+
+        # Set deleted_at for ARCHIVED courses
+        deleted_at = None
+        if status == 'ARCHIVED':
+            # deleted_at should be after created_at and updated_at
+            deleted_at = fake.date_time_between(
+                start_date=max(created_at, updated_at),
+                end_date=datetime(2024, 10, 26)
+            )
 
         courses.append({
             'id': i,
             'title': title,
             'description': generate_course_description(),
             'instructor_id': random.choice(instructor_ids),
-            'status': random.choice(['DRAFT', 'PUBLISHED', 'ARCHIVED']),
+            'status': status,
             'created_at': created_at,
             'updated_at': updated_at,
-            'deleted_at': None
+            'deleted_at': deleted_at
         })
 
     return courses
@@ -200,27 +210,28 @@ def insert_test_data():
         """
 
         for course in courses:
-            # Assign 1-3 random categories to each course
-            num_categories = random.randint(1, 3)
-            selected_categories = random.sample([cat['id'] for cat in categories], num_categories)
+            # Only create relationships for non-archived courses
+            if course['status'] != 'ARCHIVED':
+                # Assign 1-3 random categories to each course
+                num_categories = random.randint(1, 3)
+                selected_categories = random.sample([cat['id'] for cat in categories], num_categories)
 
-            for category_id in selected_categories:
-                cursor.execute(course_category_sql, (course['id'], category_id))
+                for category_id in selected_categories:
+                    cursor.execute(course_category_sql, (course['id'], category_id))
 
         conn.commit()
         print(f"""
 Test data generated successfully:
 - {len(categories)} unique categories inserted
 - {len(courses)} unique courses inserted
-- Multiple course-category relationships created
-
-Sample categories:
-{[(cat['name'], cat['created_at'].strftime('%Y-%m-%d %H:%M:%S'),
-   cat['updated_at'].strftime('%Y-%m-%d %H:%M:%S')) for cat in categories[:5]]}
+- Course status breakdown:
+  {sum(1 for c in courses if c['status'] == 'DRAFT')} DRAFT courses
+  {sum(1 for c in courses if c['status'] == 'PUBLISHED')} PUBLISHED courses
+  {sum(1 for c in courses if c['status'] == 'ARCHIVED')} ARCHIVED courses (with deleted_at set)
+- Multiple course-category relationships created for non-archived courses
 
 Sample courses:
-{[(course['title'], course['created_at'].strftime('%Y-%m-%d %H:%M:%S'),
-   course['updated_at'].strftime('%Y-%m-%d %H:%M:%S')) for course in courses[:5]]}
+{[(course['title'], course['status'], course['deleted_at'].strftime('%Y-%m-%d %H:%M:%S') if course['deleted_at'] else 'None') for course in courses[:5]]}
         """)
 
     except mysql.connector.Error as err:
