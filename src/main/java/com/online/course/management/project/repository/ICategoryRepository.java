@@ -43,13 +43,14 @@ public interface ICategoryRepository extends JpaRepository<Category, Long>, JpaS
     @Query("SELECT c FROM Category c WHERE c.deletedAt IS NULL")
     Page<Category> findNonArchivedCategories(Pageable pageable);
 
+    @Query("SELECT c FROM Category c WHERE c.deletedAt IS NOT NULL")
+    Page<Category> findArchivedCategories(Pageable pageable);
+
+    @Query("SELECT c from Category c")
+    Page<Category> findAllCategories(Pageable pageable);
+
     @Query("SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END FROM Category c WHERE c.id = :id AND c.deletedAt IS NULL")
     boolean isActiveCategory(@Param("id") Long id);
-
-    // Update operations
-    @Modifying
-    @Query("UPDATE Category c SET c.name = :name, c.updatedAt = CURRENT_TIMESTAMP WHERE c.id = :id")
-    int updateCategory(@Param("id") Long id, @Param("name") String name);
 
     // Delete operations (soft delete)
     @Modifying
