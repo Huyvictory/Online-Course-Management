@@ -15,7 +15,7 @@ import java.util.Optional;
 
 @Repository
 public interface ICategoryRepository extends JpaRepository<Category, Long>, JpaSpecificationExecutor<Category> {
-    // Create operations
+    // Create & update operations
     @Override
     <S extends Category> S save(S category);
 

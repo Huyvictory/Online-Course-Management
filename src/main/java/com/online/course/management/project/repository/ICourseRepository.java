@@ -12,21 +12,17 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpecificationExecutor<Course> {
 
-    // Create operations
+    // Create & update operations
     @Override
     <S extends Course> S save(S course);
 
-    @Query("""
-            SELECT c FROM Course c 
-            WHERE (c.status != 'ARCHIVED' AND c.deletedAt IS NULL)
-            OR (c.status = 'ARCHIVED' AND c.deletedAt IS NOT NULL)
-            """)
-    Page<Course> findAllValid(Pageable pageable);
 
     @Query("""
             SELECT c FROM Course c 
@@ -40,6 +36,9 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
     @Query("""
             SELECT c FROM Course c 
             LEFT JOIN FETCH c.categories 
+            LEFT JOIN FETCH c.instructor i 
+            LEFT JOIN FETCH i.userRoles r 
+            LEFT JOIN FETCH r.role 
             WHERE c.id = :id
             """)
     Optional<Course> findByIdWithCategories(@Param("id") Long id);
@@ -52,15 +51,20 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
             """)
     Long countCoursesInCategory(@Param("categoryId") Long categoryId);
 
+
     @Query("""
-            SELECT c FROM Course c 
-            WHERE ((c.status != 'ARCHIVED' AND c.deletedAt IS NULL)
-            OR (c.status = 'ARCHIVED' AND c.deletedAt IS NOT NULL))
+            SELECT DISTINCT c FROM Course c 
+            LEFT JOIN FETCH c.instructor i 
+            LEFT JOIN FETCH i.userRoles r 
+            LEFT JOIN FETCH r.role 
+            LEFT JOIN FETCH c.categories cat
+            WHERE c.status != 'ARCHIVED' AND c.deletedAt IS NULL 
             AND (:title IS NULL OR LOWER(c.title) LIKE LOWER(CONCAT('%', :title, '%')))
             AND (:status IS NULL OR c.status = :status)
-            AND (:instructorName IS NULL OR LOWER(c.instructor.realName) LIKE LOWER(CONCAT('%', :instructorName, '%')))
+            AND (:instructorName IS NULL OR LOWER(i.realName) LIKE LOWER(CONCAT('%', :instructorName, '%')))
             AND (:fromDate IS NULL OR c.createdAt >= :fromDate)
             AND (:toDate IS NULL OR c.createdAt <= :toDate)
+            AND (:categoryIds IS NULL OR cat.id IN :categoryIds)
             """)
     Page<Course> searchCourses(
             @Param("title") String title,
@@ -68,19 +72,20 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
             @Param("instructorName") String instructorName,
             @Param("fromDate") LocalDateTime fromDate,
             @Param("toDate") LocalDateTime toDate,
+            @Param("categoryIds") Set<Long> categoryIds,
             Pageable pageable
     );
 
     // Update operations
     @Modifying
     @Query("""
-        UPDATE Course c 
-        SET c.title = :title, 
-            c.description = :description,
-            c.status = :status,
-            c.updatedAt = CURRENT_TIMESTAMP 
-        WHERE c.id = :id
-        """)
+            UPDATE Course c 
+            SET c.title = :title, 
+                c.description = :description,
+                c.status = :status,
+                c.updatedAt = CURRENT_TIMESTAMP 
+            WHERE c.id = :id
+            """)
     int updateCourse(
             @Param("id") Long id,
             @Param("title") String title,
@@ -101,22 +106,43 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
 
     @Modifying
     @Query("""
-        UPDATE Course c 
-        SET c.status = 'DRAFT',
-            c.updatedAt = CURRENT_TIMESTAMP
-        WHERE c.id = :courseId AND c.status = 'ARCHIVED'
-        """)
+            UPDATE Course c 
+            SET c.status = 'DRAFT',
+                c.updatedAt = CURRENT_TIMESTAMP
+            WHERE c.id = :courseId AND c.status = 'ARCHIVED'
+            """)
     void unarchiveCourse(@Param("courseId") Long courseId);
 
-    @Query("SELECT COUNT(c) FROM Course c WHERE c.status = :status AND c.deletedAt IS NULL")
+    @Query("""
+            SELECT c FROM Course c 
+            LEFT JOIN FETCH c.instructor i 
+            LEFT JOIN FETCH i.userRoles r 
+            LEFT JOIN FETCH r.role 
+            WHERE c.status = :status 
+            AND c.deletedAt IS NULL
+            """)
+    Page<Course> findByStatus(@Param("status") CourseStatus status, Pageable pageable);
+
+    @Query("SELECT COUNT(c) FROM Course c WHERE c.status = :status")
     long countCoursesByStatus(@Param("status") CourseStatus status);
 
     // Category relationship operations
     @Modifying
     @Query(value = "INSERT INTO course_categories (course_id, category_id) VALUES (:courseId, :categoryId)", nativeQuery = true)
-    void addCourseCategory(@Param("courseId") Long courseId, @Param("categoryId") Long categoryId);
+    void addCourseCategories(@Param("courseId") Long courseId, @Param("categoryId") Set<Long> categoryId);
 
     @Modifying
     @Query(value = "DELETE FROM course_categories WHERE course_id = :courseId AND category_id = :categoryId", nativeQuery = true)
-    void removeCourseCategory(@Param("courseId") Long courseId, @Param("categoryId") Long categoryId);
+    void removeCourseCategories(@Param("courseId") Long courseId, @Param("categoryId") Set<Long> categoryId);
+
+    @Query("""
+            SELECT c FROM Course c 
+            LEFT JOIN FETCH c.instructor i 
+            LEFT JOIN FETCH i.userRoles r 
+            LEFT JOIN FETCH r.role 
+            WHERE c.status != 'ARCHIVED' 
+            AND c.deletedAt IS NULL 
+            ORDER BY c.createdAt DESC
+            """)
+    List<Course> findLatestCourses(Pageable pageable);
 }
