@@ -1,8 +1,10 @@
 package com.online.course.management.project.config;
 
 import com.online.course.management.project.filter.JwtAuthenticationFilter;
+import com.online.course.management.project.security.CustomAccessDeniedHandler;
 import com.online.course.management.project.security.CustomUserDetailsService;
 import com.online.course.management.project.security.JwtAuthenticationEntryPoint;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +25,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
+@Slf4j
 public class SecurityConfig {
 
     private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
@@ -59,18 +62,20 @@ public class SecurityConfig {
                     csrf.disable();
                     logger.info("CSRF is disabled");
                 })
+                .cors(cors -> cors.disable())
                 .sessionManagement(session -> {
                     session.sessionCreationPolicy(SessionCreationPolicy.STATELESS);
                     logger.info("Session management set to STATELESS");
                 })
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/api/v1/users/register", "/api/v1/users/login").permitAll()
+                        .requestMatchers("/api/v1/users/register", "/api/v1/users/login", "/error").permitAll()
                         .anyRequest().authenticated()
                 )
                 .anonymous(anonymous -> anonymous.disable()) // Disable anonymous access
                 .userDetailsService(userDetailsService)
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                        .accessDeniedHandler(new CustomAccessDeniedHandler())
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
