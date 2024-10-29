@@ -2,6 +2,7 @@ package com.online.course.management.project.service.impl;
 
 import com.online.course.management.project.dto.CategoryDTOs;
 import com.online.course.management.project.entity.Category;
+import com.online.course.management.project.exception.business.ForbiddenException;
 import com.online.course.management.project.exception.business.ResourceNotFoundException;
 import com.online.course.management.project.mapper.CategoryMapper;
 import com.online.course.management.project.repository.ICategoryRepository;
@@ -13,8 +14,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -38,6 +42,10 @@ public class CategoryServiceImpl implements ICategoryService {
 
         if (isCategoryNameExist(request.getName())) {
             throw new IllegalArgumentException("Category with name already exists");
+        }
+
+        if (request.getName() == null || request.getName().isEmpty()) {
+            throw new IllegalArgumentException("Category name cannot be empty");
         }
 
         Category category = categoryMapper.toEntity(request);
@@ -71,7 +79,11 @@ public class CategoryServiceImpl implements ICategoryService {
     public void deleteCategory(Long id) {
         log.info("Soft deleting category with id: {}", id);
 
-        categoryServiceUtils.getCategoryOrThrow(id);
+        Category category = categoryServiceUtils.getCategoryOrThrow(id);
+
+        if (category.getDeletedAt() != null) {
+            throw new ForbiddenException("Cannot delete archived category");
+        }
 
         categoryRepository.softDeleteCategory(id);
     }
@@ -91,15 +103,6 @@ public class CategoryServiceImpl implements ICategoryService {
 
 
     @Override
-    @Cacheable(value = "categories", key = "'all:' + #pageable.pageNumber + ':' + #pageable.pageSize")
-    public Page<CategoryDTOs.CategoryResponseDto> getAllCategories(Pageable pageable) {
-        log.info("Fetching all categories with pagination: {}", pageable);
-
-        Page<Category> categories = categoryRepository.findAllCategories(pageable);
-        return categories.map(categoryMapper::toDto);
-    }
-
-    @Override
     public Page<CategoryDTOs.CategoryResponseDto> searchCategories(CategoryDTOs.CategorySearchDTO request, Pageable pageable) {
         log.info("Searching categories with criteria: {}", request);
 
@@ -107,10 +110,24 @@ public class CategoryServiceImpl implements ICategoryService {
                 request.getName(),
                 request.getFromDate(),
                 request.getToDate(),
+                request.getArchived(),
                 pageable
         );
 
-        return categories.map(categoryMapper::toDto);
+        long totalCount = categoryRepository.countCategories(
+                request.getName(),
+                request.getFromDate(),
+                request.getToDate(),
+                request.getArchived()
+        );
+
+        return new PageImpl<>(
+                categories.getContent().stream()
+                        .map(categoryMapper::toDto)
+                        .collect(Collectors.toList()),
+                pageable,
+                totalCount
+        );
     }
 
     @Override
@@ -127,10 +144,4 @@ public class CategoryServiceImpl implements ICategoryService {
 
         categoryRepository.restoreCategory(id);
     }
-
-    @Override
-    public boolean isActiveCategory(Long id) {
-        return categoryRepository.isActiveCategory(id);
-    }
-
 }
