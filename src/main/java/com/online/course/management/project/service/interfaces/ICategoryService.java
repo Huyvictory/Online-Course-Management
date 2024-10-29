@@ -15,11 +15,7 @@ public interface ICategoryService {
 
     boolean isCategoryNameExist(String categoryName);
 
-    Page<CategoryDTOs.CategoryResponseDto> getAllCategories(Pageable pageable);
-
     Page<CategoryDTOs.CategoryResponseDto> searchCategories(CategoryDTOs.CategorySearchDTO request, Pageable pageable);
 
     void restoreCategory(Long id);
-
-    boolean isActiveCategory(Long id);
 }

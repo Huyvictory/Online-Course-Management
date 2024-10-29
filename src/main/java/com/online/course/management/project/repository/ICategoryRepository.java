@@ -22,13 +22,14 @@ public interface ICategoryRepository extends JpaRepository<Category, Long>, JpaS
     // Read operations
     Optional<Category> findById(Long id);
 
-    Optional<Category> findByName(String name);
-
     boolean existsByName(String name);
 
     @Query("""
             SELECT c FROM Category c 
-            WHERE c.deletedAt IS NULL 
+            WHERE (:archived IS NULL 
+                OR (:archived = true AND c.deletedAt IS NOT NULL)
+                OR (:archived = false AND c.deletedAt IS NULL)
+            )
             AND (:name IS NULL OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
             AND (:fromDate IS NULL OR c.createdAt >= :fromDate)
             AND (:toDate IS NULL OR c.createdAt <= :toDate)
@@ -37,20 +38,27 @@ public interface ICategoryRepository extends JpaRepository<Category, Long>, JpaS
             @Param("name") String name,
             @Param("fromDate") LocalDateTime fromDate,
             @Param("toDate") LocalDateTime toDate,
+            @Param("archived") Boolean archived,
             Pageable pageable
     );
 
-    @Query("SELECT c FROM Category c WHERE c.deletedAt IS NULL")
-    Page<Category> findNonArchivedCategories(Pageable pageable);
+    @Query("""
+            SELECT COUNT(c) FROM Category c 
+            WHERE (:archived IS NULL 
+                OR (:archived = true AND c.deletedAt IS NOT NULL)
+                OR (:archived = false AND c.deletedAt IS NULL)
+            )
+            AND (:name IS NULL OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))
+            AND (:fromDate IS NULL OR c.createdAt >= :fromDate)
+            AND (:toDate IS NULL OR c.createdAt <= :toDate)
+            """)
+    long countCategories(
 
-    @Query("SELECT c FROM Category c WHERE c.deletedAt IS NOT NULL")
-    Page<Category> findArchivedCategories(Pageable pageable);
-
-    @Query("SELECT c from Category c")
-    Page<Category> findAllCategories(Pageable pageable);
-
-    @Query("SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END FROM Category c WHERE c.id = :id AND c.deletedAt IS NULL")
-    boolean isActiveCategory(@Param("id") Long id);
+            @Param("name") String name,
+            @Param("fromDate") LocalDateTime fromDate,
+            @Param("toDate") LocalDateTime toDate,
+            @Param("archived") Boolean archived
+    );
 
     // Delete operations (soft delete)
     @Modifying
