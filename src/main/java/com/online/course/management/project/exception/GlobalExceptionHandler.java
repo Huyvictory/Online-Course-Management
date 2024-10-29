@@ -1,5 +1,6 @@
 package com.online.course.management.project.exception;
 
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import com.online.course.management.project.dto.ErrorResponseDTO;
 import com.online.course.management.project.exception.business.*;
 import com.online.course.management.project.exception.business.account.AccountException;
@@ -8,19 +9,24 @@ import com.online.course.management.project.exception.business.account.WrongEmai
 import com.online.course.management.project.exception.technical.DatabaseException;
 import com.online.course.management.project.exception.technical.ExternalServiceException;
 import com.online.course.management.project.exception.technical.TechnicalException;
+import com.online.course.management.project.utils.exception.GlobalExceptionUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @ControllerAdvice
@@ -102,4 +108,34 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ErrorResponseDTO errorResponse = new ErrorResponseDTO("An unexpected error occurred", HttpStatus.INTERNAL_SERVER_ERROR.value());
         return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }
+
+    @Override
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException ex,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request) {
+
+        String message;
+        if (ex.getCause() instanceof UnrecognizedPropertyException unrecognizedProp) {
+            // Handle unknown field error
+            message = String.format(
+                    "Unknown field: '%s'. Allowed fields are: %s",
+                    unrecognizedProp.getPropertyName(),
+                    String.join(", ", GlobalExceptionUtils.getKnownProperties(new HashSet<>(unrecognizedProp.getKnownPropertyIds())))
+            );
+        } else {
+            // Handle other JSON parsing errors
+            message = "Invalid request body. Please check your JSON format and field types.";
+        }
+
+        ErrorResponseDTO errorResponse = new ErrorResponseDTO(
+                message,
+                HttpStatus.BAD_REQUEST.value()
+        );
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    }
+
+
 }

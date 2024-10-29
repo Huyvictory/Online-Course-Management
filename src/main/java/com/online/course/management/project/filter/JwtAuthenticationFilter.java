@@ -94,7 +94,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private void handleMissingToken(HttpServletResponse response) throws IOException {
-        handleTokenError(response, "Authentication required: No JWT token found", HttpStatus.UNAUTHORIZED);
+        handleTokenError(response, "Authentication required", HttpStatus.UNAUTHORIZED);
     }
 
     private void handleTokenError(HttpServletResponse response, String message, HttpStatus status) throws IOException {
