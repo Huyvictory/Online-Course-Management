@@ -19,12 +19,8 @@ public interface CourseMapper {
     @Mapping(target = "categoryNames", expression = "java(mapCategoryNames(course))")
     CourseDTOS.CourseDetailsResponseDto toDto(Course course);
 
-    @Mapping(target = "instructorId", source = "instructor.id")
-    @Mapping(target = "categoryNames", expression = "java(mapCategoryNames(course))")
-    CourseDTOS.CourseListResponseDto toListDto(Course course);
-
     @Mapping(target = "roles", expression = "java(mapUserRoles(user))")
-    CourseDTOS.InstructorDto toInstructorDto(User user);
+    CourseDTOS.InstructorDetailsDto toInstructorDto(User user);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "instructor", ignore = true)

@@ -17,17 +17,18 @@ import com.online.course.management.project.security.CustomUserDetails;
 import com.online.course.management.project.service.interfaces.ICourseService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -38,6 +39,9 @@ public class CourseServiceImpl implements ICourseService {
     private final IUserRepository userRepository;
     private final ICategoryRepository categoryRepository;
     private final CourseMapper courseMapper;
+
+    private static final String DEFAULT_SORT_FIELD = "createdAt";
+    private static final String DEFAULT_SORT_ORDER = "desc";
 
     @Autowired
     public CourseServiceImpl(
@@ -53,6 +57,7 @@ public class CourseServiceImpl implements ICourseService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "courses", allEntries = true)
     public CourseDTOS.CourseDetailsResponseDto createCourse(CourseDTOS.CreateCourseRequestDTO request) {
         log.info("Creating new course with title: {}", request.getTitle());
 
@@ -71,12 +76,12 @@ public class CourseServiceImpl implements ICourseService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "courses", key = "#id")
     public CourseDTOS.CourseDetailsResponseDto updateCourse(Long id, CourseDTOS.UpdateCourseRequestDTO request) {
         log.info("Updating course with id: {}", id);
 
         Course course = getCourseWithValidation(id);
 
-        // Handle instructor update if requested
         if (request.getInstructorId() != null) {
             validateAdminRole();
             User newInstructor = userRepository.findById(request.getInstructorId())
@@ -85,20 +90,10 @@ public class CourseServiceImpl implements ICourseService {
             course.setInstructor(newInstructor);
         }
 
-        // Update basic course information
         courseMapper.updateCourseFromDto(request, course);
 
-        // Handle category updates if provided
         if (request.getCategoryIds() != null) {
-            // Using the validateCategories method for consistent validation
-            if (!request.getCategoryIds().isEmpty()) {
-                Set<Category> validCategories = validateCategories(request.getCategoryIds());
-                course.getCategories().clear();
-                validCategories.forEach(course::addCategory);
-            } else {
-                // Clear categories if empty set provided
-                course.getCategories().clear();
-            }
+            updateCourseCategories(course, request.getCategoryIds());
         }
 
         Course updatedCourse = courseRepository.save(course);
@@ -107,6 +102,7 @@ public class CourseServiceImpl implements ICourseService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "courses", key = "#id")
     public void archiveCourse(Long id) {
         log.info("Archiving course with id: {}", id);
         Course course = getCourseWithValidation(id);
@@ -115,6 +111,7 @@ public class CourseServiceImpl implements ICourseService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "courses", key = "#id")
     public void unarchiveCourse(Long id) {
         log.info("Unarchiving course with id: {}", id);
         Course course = getCourseWithValidation(id);
@@ -123,126 +120,156 @@ public class CourseServiceImpl implements ICourseService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "courses", key = "#id")
     public Optional<CourseDTOS.CourseDetailsResponseDto> getCourseById(Long id) {
-        return courseRepository.findByIdWithCategories(id)
+        log.info("Fetching course with id: {}", id);
+        return courseRepository.findByIdWithDetails(id)
                 .map(courseMapper::toDto);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Page<CourseDTOS.CourseListResponseDto> searchCourses(CourseDTOS.SearchCourseRequestDTO request, Pageable pageable) {
+    public Page<CourseDTOS.CourseDetailsResponseDto> searchCourses(
+            CourseDTOS.SearchCourseRequestDTO request,
+            Pageable pageable) {
+        log.info("Searching courses with criteria: {}", request);
+
+        // Validate and create sort if provided in request
+        if (request.getSort() != null && !request.getSort().isEmpty()) {
+            validateSortFields(request.getSort());
+            pageable = PageRequest.of(
+                    pageable.getPageNumber(),
+                    pageable.getPageSize(),
+                    createSort(request.getSort())
+            );
+        } else {
+            // Use default sort if none provided
+            pageable = PageRequest.of(
+                    pageable.getPageNumber(),
+                    pageable.getPageSize(),
+                    Sort.by(Sort.Direction.DESC, DEFAULT_SORT_FIELD)
+            );
+        }
+
         return courseRepository.searchCourses(
                 request.getTitle(),
-                request.getStatus(),
+                request.getStatus() != null ? request.getStatus().name() : null,
                 request.getInstructorName(),
                 request.getFromDate(),
                 request.getToDate(),
                 request.getCategoryIds(),
+                request.getIncludeArchived(),
                 pageable
-        ).map(courseMapper::toListDto);
+        ).map(courseMapper::toDto);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Page<CourseDTOS.CourseListResponseDto> getCoursesByInstructor(Long instructorId, Pageable pageable) {
+    public Page<CourseDTOS.CourseDetailsResponseDto> getCoursesByInstructor(
+            Long instructorId,
+            boolean includeArchived,
+            Pageable pageable) {
+        log.info("Fetching courses for instructor: {}", instructorId);
+
         if (!userRepository.existsById(instructorId)) {
             throw new ResourceNotFoundException("Instructor not found");
         }
-        return courseRepository.findByInstructorId(instructorId, pageable)
-                .map(courseMapper::toListDto);
+
+        // Use default sort if none provided
+        if (!pageable.getSort().isSorted()) {
+            pageable = PageRequest.of(
+                    pageable.getPageNumber(),
+                    pageable.getPageSize(),
+                    Sort.by(Sort.Direction.DESC, DEFAULT_SORT_FIELD)
+            );
+        } else {
+            // Validate provided sort
+            Map<String, String> sortMap = new HashMap<>();
+            pageable.getSort().forEach(order ->
+                    sortMap.put(order.getProperty(), order.getDirection().name().toLowerCase())
+            );
+            validateSortFields(sortMap);
+        }
+
+        return courseRepository.findByInstructorId(instructorId, includeArchived, pageable)
+                .map(courseMapper::toDto);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Page<CourseDTOS.CourseListResponseDto> getCoursesByStatus(CourseStatus status, Pageable pageable) {
-        return courseRepository.findByStatus(status, pageable)
-                .map(courseMapper::toListDto);
+    public Page<CourseDTOS.CourseDetailsResponseDto> getCoursesByStatus(
+            CourseStatus status,
+            Pageable pageable) {
+        log.info("Fetching courses with status: {}", status);
+
+        // Use default sort if none provided
+        if (!pageable.getSort().isSorted()) {
+            pageable = PageRequest.of(
+                    pageable.getPageNumber(),
+                    pageable.getPageSize(),
+                    Sort.by(Sort.Direction.DESC, DEFAULT_SORT_FIELD)
+            );
+        } else {
+            // Validate provided sort
+            Map<String, String> sortMap = new HashMap<>();
+            pageable.getSort().forEach(order ->
+                    sortMap.put(order.getProperty(), order.getDirection().name().toLowerCase())
+            );
+            validateSortFields(sortMap);
+        }
+
+        return courseRepository.findByStatus(status.name(), pageable)
+                .map(courseMapper::toDto);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<CourseDTOS.CourseListResponseDto> getLatestCourses(int limit) {
-        return courseRepository.findLatestCourses(PageRequest.of(0, limit))
+    @Cacheable(value = "latestCourses", key = "#limit")
+    public List<CourseDTOS.CourseDetailsResponseDto> getLatestCourses(int limit) {
+        log.info("Fetching latest {} courses", limit);
+        return courseRepository.findLatestCourses(limit)
                 .stream()
-                .map(courseMapper::toListDto)
+                .map(courseMapper::toDto)
                 .collect(Collectors.toList());
     }
 
     @Override
-    @Transactional(readOnly = true)
     public long countByInstructor(Long instructorId) {
-        if (!userRepository.existsById(instructorId)) {
-            throw new ResourceNotFoundException("Instructor not found");
-        }
         return courseRepository.countByInstructorId(instructorId);
     }
 
     @Override
-    @Transactional(readOnly = true)
     public long countByStatus(CourseStatus status) {
-        return courseRepository.countCoursesByStatus(status);
+        return courseRepository.countByStatus(status.name());
     }
 
     @Override
-    @Transactional(readOnly = true)
     public long countCoursesInCategory(Long categoryId) {
-        if (!categoryRepository.existsById(categoryId)) {
-            throw new ResourceNotFoundException("Category not found");
-        }
         return courseRepository.countCoursesInCategory(categoryId);
     }
 
     @Override
     @Transactional
+    @CacheEvict(value = "courses", key = "#courseId")
     public CourseDTOS.CourseDetailsResponseDto assignCategories(Long courseId, Set<Long> categoryIds) {
         log.info("Assigning categories {} to course {}", categoryIds, courseId);
 
         Course course = getCourseWithValidation(courseId);
+        validateCategories(categoryIds);
 
-        if (categoryIds == null || categoryIds.isEmpty()) {
-            throw new InvalidRequestException("Category IDs must not be empty");
-        }
-
-        Set<Long> newCategoryIds = categoryIds.stream()
-                .filter(catId -> course.getCategories().stream()
-                        .noneMatch(existing -> existing.getId().equals(catId)))
-                .collect(Collectors.toSet());
-
-        if (!newCategoryIds.isEmpty()) {
-            validateCategories(newCategoryIds);
-            courseRepository.addCourseCategories(courseId, newCategoryIds);
-        }
-
-        return courseMapper.toDto(
-                courseRepository.findByIdWithCategories(courseId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Course not found"))
-        );
+        courseRepository.addCourseCategory(courseId, categoryIds.iterator().next());
+        return courseMapper.toDto(course);
     }
 
     @Override
     @Transactional
+    @CacheEvict(value = "courses", key = "#courseId")
     public CourseDTOS.CourseDetailsResponseDto removeCategories(Long courseId, Set<Long> categoryIds) {
         log.info("Removing categories {} from course {}", categoryIds, courseId);
 
         Course course = getCourseWithValidation(courseId);
-
-        if (categoryIds == null || categoryIds.isEmpty()) {
-            throw new InvalidRequestException("Category IDs must not be empty");
-        }
-
-        Set<Long> categoryIdsToRemove = course.getCategories().stream()
-                .map(Category::getId)
-                .filter(categoryIds::contains)
-                .collect(Collectors.toSet());
-
-        if (!categoryIdsToRemove.isEmpty()) {
-            courseRepository.removeCourseCategories(courseId, categoryIdsToRemove);
-        }
-
-        return courseMapper.toDto(
-                courseRepository.findByIdWithCategories(courseId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Course not found"))
-        );
+        courseRepository.removeCourseCategories(courseId, categoryIds);
+        return courseMapper.toDto(course);
     }
 
     // Helper methods
@@ -267,34 +294,35 @@ public class CourseServiceImpl implements ICourseService {
                 .collect(Collectors.toSet());
 
         if (categories.size() != categoryIds.size()) {
-            Set<Long> foundIds = categories.stream()
-                    .map(Category::getId)
-                    .collect(Collectors.toSet());
-            Set<Long> missingIds = categoryIds.stream()
-                    .filter(id -> !foundIds.contains(id))
-                    .collect(Collectors.toSet());
-            throw new ResourceNotFoundException("Categories not found: " + missingIds);
+            throw new ResourceNotFoundException("Some categories not found");
         }
 
-        Set<Long> deletedCategoryIds = categories.stream()
+        categories.stream()
                 .filter(cat -> cat.getDeletedAt() != null)
-                .map(Category::getId)
-                .collect(Collectors.toSet());
-
-        if (!deletedCategoryIds.isEmpty()) {
-            throw new InvalidRequestException("Cannot use deleted categories: " + deletedCategoryIds);
-        }
+                .findAny()
+                .ifPresent(cat -> {
+                    throw new InvalidRequestException("Cannot use deleted category: " + cat.getId());
+                });
 
         return categories;
     }
 
+    private void updateCourseCategories(Course course, Set<Long> categoryIds) {
+        if (categoryIds.isEmpty()) {
+            course.getCategories().clear();
+        } else {
+            Set<Category> validCategories = validateCategories(categoryIds);
+            course.getCategories().clear();
+            validCategories.forEach(course::addCategory);
+        }
+    }
+
     private Course getCourseWithValidation(Long id) {
-        Course course = courseRepository.findByIdWithCategories(id)
+        Course course = courseRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
         validateCourseAccess(course);
         return course;
     }
-
 
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -330,5 +358,57 @@ public class CourseServiceImpl implements ICourseService {
         if (!isInstructor) {
             throw new InvalidRequestException("User is not an instructor");
         }
+    }
+
+    // Update the helper method to handle Sort conversion
+    private Sort createSort(Map<String, String> sortParams) {
+        if (sortParams == null || sortParams.isEmpty()) {
+            return Sort.by(Sort.Direction.DESC, DEFAULT_SORT_FIELD);
+        }
+
+        validateSortFields(sortParams); // Validate before creating Sort
+
+        List<Sort.Order> orders = sortParams.entrySet().stream()
+                .map(entry -> new Sort.Order(
+                        entry.getValue().equalsIgnoreCase("asc") ?
+                                Sort.Direction.ASC : Sort.Direction.DESC,
+                        entry.getKey()
+                ))
+                .collect(Collectors.toList());
+
+        return Sort.by(orders);
+    }
+
+    // Update the helper method to include all valid sort fields
+    private void validateSortFields(Map<String, String> sort) {
+        if (sort == null) return;
+
+        Set<String> validFields = Set.of(
+                "title",
+                "createdAt",
+                "updatedAt",
+                "status",
+                "instructorName",
+                "categoryCount"
+        );
+
+        Set<String> invalidFields = sort.keySet().stream()
+                .filter(field -> !validFields.contains(field))
+                .collect(Collectors.toSet());
+
+        if (!invalidFields.isEmpty()) {
+            throw new InvalidRequestException(
+                    "Invalid sort fields: " + String.join(", ", invalidFields) +
+                            ". Valid fields are: " + String.join(", ", validFields)
+            );
+        }
+
+        sort.values().forEach(direction -> {
+            if (!direction.equalsIgnoreCase("asc") && !direction.equalsIgnoreCase("desc")) {
+                throw new InvalidRequestException(
+                        "Invalid sort direction: " + direction + ". Must be 'asc' or 'desc'"
+                );
+            }
+        });
     }
 }

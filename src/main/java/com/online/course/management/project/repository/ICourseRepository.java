@@ -24,125 +24,225 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
     <S extends Course> S save(S course);
 
 
-    @Query("""
-            SELECT c FROM Course c 
-            WHERE c.instructor.id = :instructorId 
-            """)
-    Page<Course> findByInstructorId(@Param("instructorId") Long instructorId, Pageable pageable);
+    @Query(value = """
+            SELECT DISTINCT
+                c.*,
+                u.id as instructor_id,
+                u.username as instructor_username,
+                u.email as instructor_email,
+                u.real_name as instructor_name,
+                GROUP_CONCAT(DISTINCT cat.name ORDER BY cat.name) as category_names
+            FROM courses c
+            LEFT JOIN users u ON c.instructor_id = u.id
+            LEFT JOIN course_categories cc ON c.id = cc.course_id
+            LEFT JOIN categories cat ON cc.category_id = cat.id
+            WHERE c.deleted_at IS NULL
+            AND c.instructor_id = :instructorId
+            AND (:includeArchived = true OR c.status != 'ARCHIVED')
+            GROUP BY c.id, u.id, u.username, u.email, u.real_name
+            """,
+            countQuery = """
+                    SELECT COUNT(DISTINCT c.id)
+                    FROM courses c
+                    WHERE c.instructor_id = :instructorId
+                    AND c.deleted_at IS NULL
+                    AND (:includeArchived = true OR c.status != 'ARCHIVED')
+                    """,
+            nativeQuery = true)
+    Page<Course> findByInstructorId(
+            @Param("instructorId") Long instructorId,
+            @Param("includeArchived") Boolean includeArchived,
+            Pageable pageable
+    );
 
-    @Query("SELECT COUNT(c) FROM Course c WHERE c.instructor.id = :instructorId AND c.deletedAt IS NULL")
+    @Query(value = """
+            SELECT DISTINCT c.*,
+                u.username as instructor_username,
+                u.email as instructor_email,
+                u.real_name as instructor_name,
+                GROUP_CONCAT(DISTINCT cat.name ORDER BY cat.name) as category_names
+            FROM courses c
+            LEFT JOIN users u ON c.instructor_id = u.id
+            LEFT JOIN course_categories cc ON c.id = cc.course_id
+            LEFT JOIN categories cat ON cc.category_id = cat.id
+            WHERE c.id = :id 
+            GROUP BY c.id, u.username, u.email, u.real_name
+            """, nativeQuery = true)
+    Optional<Course> findByIdWithDetails(@Param("id") Long id);
+
+    @Query(value = """
+            SELECT DISTINCT
+                c.*,
+                u.username as instructor_username,
+                u.email as instructor_email,
+                u.real_name as instructor_name,
+                GROUP_CONCAT(DISTINCT cat.name ORDER BY cat.name) as category_names
+            FROM courses c
+            LEFT JOIN users u ON c.instructor_id = u.id
+            LEFT JOIN course_categories cc ON c.id = cc.course_id
+            LEFT JOIN categories cat ON cc.category_id = cat.id
+            WHERE c.status = :status
+            GROUP BY c.id, u.username, u.email, u.real_name
+            """,
+            countQuery = """
+                        SELECT COUNT(DISTINCT c.id)
+                        FROM courses c
+                        WHERE c.status = :status
+                    """,
+            nativeQuery = true)
+    Page<Course> findByStatus(
+            @Param("status") String status,
+            Pageable pageable
+    );
+
+    @Query(value = """
+            SELECT DISTINCT
+                c.*,
+                u.username as instructor_username,
+                u.email as instructor_email,
+                u.real_name as instructor_name,
+                GROUP_CONCAT(DISTINCT cat.name ORDER BY cat.name) as category_names
+            FROM courses c
+            LEFT JOIN users u ON c.instructor_id = u.id
+            LEFT JOIN course_categories cc ON c.id = cc.course_id
+            LEFT JOIN categories cat ON cc.category_id = cat.id
+            WHERE c.status != 'ARCHIVED'
+            AND c.deleted_at IS NULL
+            GROUP BY c.id, u.username, u.email, u.real_name
+            ORDER BY c.created_at DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Course> findLatestCourses(@Param("limit") int limit);
+
+    @Query(value = """
+            SELECT COUNT(DISTINCT c.id)
+            FROM courses c
+            WHERE c.instructor_id = :instructorId
+            """, nativeQuery = true)
     long countByInstructorId(@Param("instructorId") Long instructorId);
 
-    @Query("""
-            SELECT c FROM Course c 
-            LEFT JOIN FETCH c.categories 
-            LEFT JOIN FETCH c.instructor i 
-            LEFT JOIN FETCH i.userRoles r 
-            LEFT JOIN FETCH r.role 
-            WHERE c.id = :id
-            """)
-    Optional<Course> findByIdWithCategories(@Param("id") Long id);
+    @Query(value = """
+            SELECT COUNT(DISTINCT c.id)
+            FROM courses c
+            INNER JOIN course_categories cc ON c.id = cc.course_id
+            WHERE cc.category_id = :categoryId
+            """, nativeQuery = true)
+    long countCoursesInCategory(@Param("categoryId") Long categoryId);
 
-    @Query("""
-            SELECT COUNT(DISTINCT c) FROM Course c 
-            JOIN c.categories cat 
-            WHERE cat.id = :categoryId 
-            AND c.deletedAt IS NULL
-            """)
-    Long countCoursesInCategory(@Param("categoryId") Long categoryId);
+    @Query(value = """
+            SELECT COUNT(DISTINCT c.id)
+            FROM courses c
+            WHERE c.status = :status
+            AND c.deleted_at IS NULL
+            """, nativeQuery = true)
+    long countByStatus(@Param("status") String status);
 
 
-    @Query("""
-            SELECT DISTINCT c FROM Course c 
-            LEFT JOIN FETCH c.instructor i 
-            LEFT JOIN FETCH i.userRoles r 
-            LEFT JOIN FETCH r.role 
-            LEFT JOIN FETCH c.categories cat
-            WHERE c.status != 'ARCHIVED' AND c.deletedAt IS NULL 
-            AND (:title IS NULL OR LOWER(c.title) LIKE LOWER(CONCAT('%', :title, '%')))
+    @Query(value = """
+            SELECT DISTINCT
+                c.*,
+                u.username as instructor_username,
+                u.email as instructor_email,
+                u.real_name as instructor_name,
+                GROUP_CONCAT(DISTINCT cat.name ORDER BY cat.name) as category_names
+            FROM courses c
+            LEFT JOIN users u ON c.instructor_id = u.id
+            LEFT JOIN course_categories cc ON c.id = cc.course_id
+            LEFT JOIN categories cat ON cc.category_id = cat.id
+            WHERE c.deleted_at IS NULL
+            AND (:includeArchived = true OR c.status != 'ARCHIVED')
+            AND (:title IS NULL OR LOWER(c.title) LIKE CONCAT('%', LOWER(:title), '%'))
             AND (:status IS NULL OR c.status = :status)
-            AND (:instructorName IS NULL OR LOWER(i.realName) LIKE LOWER(CONCAT('%', :instructorName, '%')))
-            AND (:fromDate IS NULL OR c.createdAt >= :fromDate)
-            AND (:toDate IS NULL OR c.createdAt <= :toDate)
-            AND (:categoryIds IS NULL OR cat.id IN :categoryIds)
-            """)
+            AND (:instructorName IS NULL OR LOWER(u.real_name) LIKE CONCAT('%', LOWER(:instructorName), '%'))
+            AND (:fromDate IS NULL OR c.created_at >= :fromDate)
+            AND (:toDate IS NULL OR c.created_at <= :toDate)
+            AND (COALESCE(:categoryIds) IS NULL OR cc.category_id IN (:categoryIds))
+            GROUP BY c.id, u.username, u.email, u.real_name
+            """,
+            countQuery = """
+                        SELECT COUNT(DISTINCT c.id)
+                        FROM courses c
+                        LEFT JOIN users u ON c.instructor_id = u.id
+                        LEFT JOIN course_categories cc ON c.id = cc.course_id
+                        WHERE c.deleted_at IS NULL
+                        AND (:includeArchived = true OR c.status != 'ARCHIVED')
+                        AND (:title IS NULL OR LOWER(c.title) LIKE CONCAT('%', LOWER(:title), '%'))
+                        AND (:status IS NULL OR c.status = :status)
+                        AND (:instructorName IS NULL OR LOWER(u.real_name) LIKE CONCAT('%', LOWER(:instructorName), '%'))
+                        AND (:fromDate IS NULL OR c.created_at >= :fromDate)
+                        AND (:toDate IS NULL OR c.created_at <= :toDate)
+                        AND (COALESCE(:categoryIds) IS NULL OR cc.category_id IN (:categoryIds))
+                    """,
+            nativeQuery = true)
     Page<Course> searchCourses(
             @Param("title") String title,
-            @Param("status") CourseStatus status,
+            @Param("status") String status,
             @Param("instructorName") String instructorName,
             @Param("fromDate") LocalDateTime fromDate,
             @Param("toDate") LocalDateTime toDate,
             @Param("categoryIds") Set<Long> categoryIds,
+            @Param("includeArchived") Boolean includeArchived,
             Pageable pageable
     );
 
     // Update operations
     @Modifying
-    @Query("""
-            UPDATE Course c 
-            SET c.title = :title, 
-                c.description = :description,
-                c.status = :status,
-                c.updatedAt = CURRENT_TIMESTAMP 
-            WHERE c.id = :id
-            """)
+    @Query(value = """
+            UPDATE courses 
+            SET title = :title,
+                description = :description,
+                status = :status,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :id
+            """, nativeQuery = true)
     int updateCourse(
             @Param("id") Long id,
             @Param("title") String title,
             @Param("description") String description,
-            @Param("status") CourseStatus status
+            @Param("status") String status
     );
 
     // Archive operation (special form of soft delete)
     @Modifying
-    @Query("""
-            UPDATE Course c 
-            SET c.status = 'ARCHIVED', 
-                c.deletedAt = CURRENT_TIMESTAMP,
-                c.updatedAt = CURRENT_TIMESTAMP
-            WHERE c.id = :courseId
-            """)
+    @Query(value = """
+            UPDATE courses 
+            SET status = 'ARCHIVED',
+                deleted_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :courseId
+            """, nativeQuery = true)
     void archiveCourse(@Param("courseId") Long courseId);
 
     @Modifying
-    @Query("""
-            UPDATE Course c 
-            SET c.status = 'DRAFT',
-                c.updatedAt = CURRENT_TIMESTAMP
-            WHERE c.id = :courseId AND c.status = 'ARCHIVED'
-            """)
+    @Query(value = """
+            UPDATE courses 
+            SET status = 'DRAFT',
+                deleted_at = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :courseId 
+            AND status = 'ARCHIVED'
+            """, nativeQuery = true)
     void unarchiveCourse(@Param("courseId") Long courseId);
 
-    @Query("""
-            SELECT c FROM Course c 
-            LEFT JOIN FETCH c.instructor i 
-            LEFT JOIN FETCH i.userRoles r 
-            LEFT JOIN FETCH r.role 
-            WHERE c.status = :status 
-            AND c.deletedAt IS NULL
-            """)
-    Page<Course> findByStatus(@Param("status") CourseStatus status, Pageable pageable);
-
-    @Query("SELECT COUNT(c) FROM Course c WHERE c.status = :status")
-    long countCoursesByStatus(@Param("status") CourseStatus status);
+    @Modifying
+    @Query(value = """
+            INSERT INTO course_categories (course_id, category_id)
+            VALUES (:courseId, :categoryId)
+            """, nativeQuery = true)
+    void addCourseCategory(
+            @Param("courseId") Long courseId,
+            @Param("categoryId") Long categoryId
+    );
 
     // Category relationship operations
     @Modifying
-    @Query(value = "INSERT INTO course_categories (course_id, category_id) VALUES (:courseId, :categoryId)", nativeQuery = true)
-    void addCourseCategories(@Param("courseId") Long courseId, @Param("categoryId") Set<Long> categoryId);
-
-    @Modifying
-    @Query(value = "DELETE FROM course_categories WHERE course_id = :courseId AND category_id = :categoryId", nativeQuery = true)
-    void removeCourseCategories(@Param("courseId") Long courseId, @Param("categoryId") Set<Long> categoryId);
-
-    @Query("""
-            SELECT c FROM Course c 
-            LEFT JOIN FETCH c.instructor i 
-            LEFT JOIN FETCH i.userRoles r 
-            LEFT JOIN FETCH r.role 
-            WHERE c.status != 'ARCHIVED' 
-            AND c.deletedAt IS NULL 
-            ORDER BY c.createdAt DESC
-            """)
-    List<Course> findLatestCourses(Pageable pageable);
+    @Query(value = """
+            DELETE FROM course_categories 
+            WHERE course_id = :courseId 
+            AND category_id IN (:categoryIds)
+            """, nativeQuery = true)
+    void removeCourseCategories(
+            @Param("courseId") Long courseId,
+            @Param("categoryIds") Set<Long> categoryIds
+    );
 }

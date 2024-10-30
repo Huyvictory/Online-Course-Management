@@ -10,31 +10,73 @@ import java.util.Optional;
 import java.util.Set;
 
 public interface ICourseService {
+    /**
+     * Creates a new course
+     */
     CourseDTOS.CourseDetailsResponseDto createCourse(CourseDTOS.CreateCourseRequestDTO request);
 
+    /**
+     * Updates an existing course
+     */
     CourseDTOS.CourseDetailsResponseDto updateCourse(Long id, CourseDTOS.UpdateCourseRequestDTO request);
 
+    /**
+     * Archives a course (soft delete)
+     */
     void archiveCourse(Long id);
 
+    /**
+     * Restores an archived course
+     */
     void unarchiveCourse(Long id);
 
+    /**
+     * Gets course details by ID
+     */
     Optional<CourseDTOS.CourseDetailsResponseDto> getCourseById(Long id);
 
-    Page<CourseDTOS.CourseListResponseDto> searchCourses(CourseDTOS.SearchCourseRequestDTO request, Pageable pageable);
+    /**
+     * Searches courses with filters and pagination
+     */
+    Page<CourseDTOS.CourseDetailsResponseDto> searchCourses(CourseDTOS.SearchCourseRequestDTO request, Pageable pageable);
 
-    Page<CourseDTOS.CourseListResponseDto> getCoursesByInstructor(Long instructorId, Pageable pageable);
+    /**
+     * Gets courses by instructor with pagination
+     */
+    Page<CourseDTOS.CourseDetailsResponseDto> getCoursesByInstructor(Long instructorId, boolean includeArchived, Pageable pageable);
 
-    Page<CourseDTOS.CourseListResponseDto> getCoursesByStatus(CourseStatus status, Pageable pageable);
+    /**
+     * Gets courses by status with pagination
+     */
+    Page<CourseDTOS.CourseDetailsResponseDto> getCoursesByStatus(CourseStatus status, Pageable pageable);
 
-    List<CourseDTOS.CourseListResponseDto> getLatestCourses(int limit);
+    /**
+     * Gets the latest courses
+     */
+    List<CourseDTOS.CourseDetailsResponseDto> getLatestCourses(int limit);
 
+    /**
+     * Count courses by instructor
+     */
     long countByInstructor(Long instructorId);
 
+    /**
+     * Count courses by status
+     */
     long countByStatus(CourseStatus status);
 
+    /**
+     * Count courses in a category
+     */
     long countCoursesInCategory(Long categoryId);
 
+    /**
+     * Assigns categories to a course
+     */
     CourseDTOS.CourseDetailsResponseDto assignCategories(Long courseId, Set<Long> categoryIds);
 
+    /**
+     * Removes categories from a course
+     */
     CourseDTOS.CourseDetailsResponseDto removeCategories(Long courseId, Set<Long> categoryIds);
 }
