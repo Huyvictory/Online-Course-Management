@@ -1,5 +1,8 @@
 package com.online.course.management.project.exception;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import com.online.course.management.project.dto.ErrorResponseDTO;
 import com.online.course.management.project.exception.business.*;
@@ -24,9 +27,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @ControllerAdvice
@@ -124,6 +125,29 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                     unrecognizedProp.getPropertyName(),
                     String.join(", ", GlobalExceptionUtils.getKnownProperties(new HashSet<>(unrecognizedProp.getKnownPropertyIds())))
             );
+        } else if (ex.getCause() instanceof InvalidFormatException invalidFormat) {
+            // Handle enum parsing errors
+            if (invalidFormat.getTargetType() != null && invalidFormat.getTargetType().isEnum()) {
+                try {
+                    ObjectMapper objectMapper = new ObjectMapper();
+                    message = String.format("Invalid value for enum field: %s",
+                            objectMapper.writeValueAsString(Map.of(
+                                    "field", invalidFormat.getPath().get(0).getFieldName(),
+                                    "invalidValue", invalidFormat.getValue(),
+                                    "allowedValues", Arrays.stream(invalidFormat.getTargetType().getEnumConstants())
+                                            .map(Object::toString)
+                                            .collect(Collectors.toList())
+                            ))
+                    );
+                } catch (JsonProcessingException e) {
+                    message = "Invalid request body. Please check your JSON format and field types.";
+                }
+            } else {
+                // Handle other format errors
+                message = String.format("Invalid value for field '%s': %s",
+                        invalidFormat.getPath().get(0).getFieldName(),
+                        invalidFormat.getValue());
+            }
         } else {
             // Handle other JSON parsing errors
             message = "Invalid request body. Please check your JSON format and field types.";

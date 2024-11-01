@@ -69,14 +69,4 @@ public interface ICourseService {
      * Count courses in a category
      */
     long countCoursesInCategory(Long categoryId);
-
-    /**
-     * Assigns categories to a course
-     */
-    CourseDTOS.CourseDetailsResponseDto assignCategories(Long courseId, Set<Long> categoryIds);
-
-    /**
-     * Removes categories from a course
-     */
-    CourseDTOS.CourseDetailsResponseDto removeCategories(Long courseId, Set<Long> categoryIds);
 }

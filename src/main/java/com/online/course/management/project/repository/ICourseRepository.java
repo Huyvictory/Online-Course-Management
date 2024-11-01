@@ -234,15 +234,4 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
             @Param("categoryId") Long categoryId
     );
 
-    // Category relationship operations
-    @Modifying
-    @Query(value = """
-            DELETE FROM course_categories 
-            WHERE course_id = :courseId 
-            AND category_id IN (:categoryIds)
-            """, nativeQuery = true)
-    void removeCourseCategories(
-            @Param("courseId") Long courseId,
-            @Param("categoryIds") Set<Long> categoryIds
-    );
 }

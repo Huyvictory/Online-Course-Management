@@ -55,9 +55,9 @@ public class CourseDTOS {
 
         private Set<Long> categoryIds;
 
-        private Long instructorId; // Optional, only for admin use
+        private Long instructorId;
 
-        private CourseStatus status = CourseStatus.DRAFT; // Default status
+        private CourseStatus status = CourseStatus.DRAFT;
     }
 
     @Data

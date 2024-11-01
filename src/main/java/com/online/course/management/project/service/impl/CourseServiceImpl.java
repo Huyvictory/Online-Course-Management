@@ -1,5 +1,7 @@
 package com.online.course.management.project.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.online.course.management.project.dto.CourseDTOS;
 import com.online.course.management.project.entity.Category;
 import com.online.course.management.project.entity.Course;
@@ -28,6 +30,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -61,13 +64,23 @@ public class CourseServiceImpl implements ICourseService {
     public CourseDTOS.CourseDetailsResponseDto createCourse(CourseDTOS.CreateCourseRequestDTO request) {
         log.info("Creating new course with title: {}", request.getTitle());
 
-        User instructor = determineInstructor(request.getInstructorId());
         Course course = courseMapper.toEntity(request);
-        course.setInstructor(instructor);
+
+        if (request.getInstructorId() != null) {
+            User instructor = determineInstructor(request.getInstructorId());
+            course.setInstructor(instructor);
+        }
+
+        // Important: Initialize the categories set if null
+        if (course.getCategories() == null) {
+            course.setCategories(new HashSet<>());
+        }
 
         if (request.getCategoryIds() != null && !request.getCategoryIds().isEmpty()) {
             Set<Category> categories = validateCategories(request.getCategoryIds());
-            categories.forEach(course::addCategory);
+            for (Category category : categories) {
+                course.addCategory(category);
+            }
         }
 
         Course savedCourse = courseRepository.save(course);
@@ -83,16 +96,30 @@ public class CourseServiceImpl implements ICourseService {
         Course course = getCourseWithValidation(id);
 
         if (request.getInstructorId() != null) {
-            validateAdminRole();
-            User newInstructor = userRepository.findById(request.getInstructorId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Instructor not found"));
-            validateInstructorRole(newInstructor);
+            User newInstructor = determineInstructor(request.getInstructorId());
             course.setInstructor(newInstructor);
+        }
+
+        // If status is being updated, validate the transition
+        if (request.getStatus() != null) {
+            try {
+                validateCourseStatus(course.getStatus(), request.getStatus());
+            } catch (JsonProcessingException e) {
+                throw new InvalidRequestException("Error processing status validation");
+            }
+
+            // Handle archived status and deletedAt
+            if (request.getStatus() == CourseStatus.ARCHIVED) {
+                course.setDeletedAt(LocalDateTime.now());
+            } else if (course.getStatus() == CourseStatus.ARCHIVED && request.getStatus() != CourseStatus.ARCHIVED) {
+                // If transitioning from ARCHIVED to another status, clear deletedAt
+                course.setDeletedAt(null);
+            }
         }
 
         courseMapper.updateCourseFromDto(request, course);
 
-        if (request.getCategoryIds() != null) {
+        if (request.getCategoryIds() != null && !request.getCategoryIds().isEmpty()) {
             updateCourseCategories(course, request.getCategoryIds());
         }
 
@@ -248,34 +275,10 @@ public class CourseServiceImpl implements ICourseService {
         return courseRepository.countCoursesInCategory(categoryId);
     }
 
-    @Override
-    @Transactional
-    @CacheEvict(value = "courses", key = "#courseId")
-    public CourseDTOS.CourseDetailsResponseDto assignCategories(Long courseId, Set<Long> categoryIds) {
-        log.info("Assigning categories {} to course {}", categoryIds, courseId);
-
-        Course course = getCourseWithValidation(courseId);
-        validateCategories(categoryIds);
-
-        courseRepository.addCourseCategory(courseId, categoryIds.iterator().next());
-        return courseMapper.toDto(course);
-    }
-
-    @Override
-    @Transactional
-    @CacheEvict(value = "courses", key = "#courseId")
-    public CourseDTOS.CourseDetailsResponseDto removeCategories(Long courseId, Set<Long> categoryIds) {
-        log.info("Removing categories {} from course {}", categoryIds, courseId);
-
-        Course course = getCourseWithValidation(courseId);
-        courseRepository.removeCourseCategories(courseId, categoryIds);
-        return courseMapper.toDto(course);
-    }
-
     // Helper methods
     private User determineInstructor(Long instructorId) {
         if (instructorId != null) {
-            validateAdminRole();
+
             User instructor = userRepository.findById(instructorId)
                     .orElseThrow(() -> new ResourceNotFoundException("Instructor not found"));
             validateInstructorRole(instructor);
@@ -289,32 +292,68 @@ public class CourseServiceImpl implements ICourseService {
             throw new InvalidRequestException("Category IDs must not be empty");
         }
 
-        Set<Category> categories = categoryRepository.findAllById(categoryIds)
-                .stream()
-                .collect(Collectors.toSet());
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
 
-        if (categories.size() != categoryIds.size()) {
-            throw new ResourceNotFoundException("Some categories not found");
+            // Find all categories
+            Set<Category> foundCategories = new HashSet<>(categoryRepository.findAllById(categoryIds));
+
+            // Check for non-existent categories
+            if (foundCategories.size() != categoryIds.size()) {
+                Set<Long> foundIds = foundCategories.stream()
+                        .map(Category::getId)
+                        .collect(Collectors.toSet());
+
+                Set<Long> notFoundIds = categoryIds.stream()
+                        .filter(id -> !foundIds.contains(id))
+                        .collect(Collectors.toSet());
+
+                String notFoundMessage = String.format("Categories not found: %s",
+                        objectMapper.writeValueAsString(
+                                notFoundIds.stream()
+                                        .map(id -> Map.of(
+                                                "id", id,
+                                                "nameCategory", "Not Found"
+                                        ))
+                                        .collect(Collectors.toList())
+                        )
+                );
+
+                throw new ResourceNotFoundException(notFoundMessage);
+            }
+
+            // Check for deleted categories
+            Set<Category> deletedCategories = foundCategories.stream()
+                    .filter(cat -> cat.getDeletedAt() != null)
+                    .collect(Collectors.toSet());
+
+            if (!deletedCategories.isEmpty()) {
+                String deletedCategoriesMessage = String.format("Cannot use deleted categories: %s",
+                        objectMapper.writeValueAsString(
+                                deletedCategories.stream()
+                                        .map(cat -> Map.of(
+                                                "id", cat.getId(),
+                                                "nameCategory", cat.getName()
+                                        ))
+                                        .collect(Collectors.toList())
+                        )
+                );
+
+                throw new InvalidRequestException(deletedCategoriesMessage);
+            }
+
+            return foundCategories;
+
+        } catch (JsonProcessingException e) {
+            throw new InvalidRequestException("Error processing category validation");
         }
-
-        categories.stream()
-                .filter(cat -> cat.getDeletedAt() != null)
-                .findAny()
-                .ifPresent(cat -> {
-                    throw new InvalidRequestException("Cannot use deleted category: " + cat.getId());
-                });
-
-        return categories;
     }
 
     private void updateCourseCategories(Course course, Set<Long> categoryIds) {
-        if (categoryIds.isEmpty()) {
-            course.getCategories().clear();
-        } else {
-            Set<Category> validCategories = validateCategories(categoryIds);
-            course.getCategories().clear();
-            validCategories.forEach(course::addCategory);
-        }
+        Set<Category> validCategories = validateCategories(categoryIds);
+        course.getCategories().clear();
+        validCategories.forEach(course::addCategory);
+
     }
 
     private Course getCourseWithValidation(Long id) {
@@ -410,5 +449,54 @@ public class CourseServiceImpl implements ICourseService {
                 );
             }
         });
+    }
+
+    private void validateCourseStatus(CourseStatus currentStatus, CourseStatus newStatus) throws JsonProcessingException {
+        if (newStatus == null) {
+            throw new InvalidRequestException("Course status cannot be null");
+        }
+
+        // If it's a new course (currentStatus is null), only allow DRAFT
+        if (currentStatus == null && newStatus != CourseStatus.DRAFT) {
+            throw new InvalidRequestException(
+                    String.format("New course must be created with status DRAFT, received: %s", newStatus)
+            );
+        }
+
+        // Define valid transitions for each status
+        Map<CourseStatus, Set<CourseStatus>> validTransitions = Map.of(
+                CourseStatus.DRAFT, Set.of(CourseStatus.PUBLISHED, CourseStatus.ARCHIVED),
+                CourseStatus.PUBLISHED, Set.of(CourseStatus.DRAFT, CourseStatus.ARCHIVED),
+                CourseStatus.ARCHIVED, Set.of(CourseStatus.DRAFT)
+        );
+
+
+        // If current status exists, validate the transition
+        if (currentStatus != null && !validTransitions.get(currentStatus).contains(newStatus)) {
+            try {
+
+                CourseStatus.valueOf(newStatus.name());
+                ObjectMapper objectMapper = new ObjectMapper();
+                String errorMessage = String.format("Invalid status transition: %s",
+                        objectMapper.writeValueAsString(Map.of(
+                                "currentStatus", currentStatus,
+                                "newStatus", newStatus,
+                                "allowedTransitions", validTransitions.get(currentStatus)
+                        ))
+                );
+                throw new InvalidRequestException(errorMessage);
+            } catch (IllegalArgumentException e) {
+                ObjectMapper objectMapper = new ObjectMapper();
+                String errorMessage = String.format("Invalid course status: %s",
+                        objectMapper.writeValueAsString(Map.of(
+                                "providedStatus", newStatus,
+                                "allowedStatuses", Arrays.stream(CourseStatus.values())
+                                        .map(Enum::name)
+                                        .collect(Collectors.toList())
+                        ))
+                );
+                throw new InvalidRequestException(errorMessage);
+            }
+        }
     }
 }
