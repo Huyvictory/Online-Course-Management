@@ -105,42 +105,9 @@ public class CourseDTOS {
             return toDate.isAfter(fromDate);
         }
 
-        @AssertTrue(message = "Sort direction must be 'asc' or 'desc'")
-        private boolean isSortValid() {
-            if (sort == null || sort.isEmpty()) {
-                return true;
-            }
-            return sort.values().stream()
-                    .allMatch(direction -> direction == null ||
-                            direction.equalsIgnoreCase("asc") ||
-                            direction.equalsIgnoreCase("desc"));
-        }
-
-        @AssertTrue(message = "Sortable fields are 'createdAt' and 'updatedAt'")
-        private boolean isSortFieldValid() {
-            if (sort == null || sort.isEmpty()) {
-                return true;
-            }
-            return sort.keySet().stream()
-                    .allMatch(field -> field.equals("createdAt") || field.equals("updatedAt"));
-        }
-
         @Override
         public org.springframework.data.domain.Pageable toPageable() {
-            List<Sort.Order> orders = new ArrayList<>();
-
-            if (sort != null && !sort.isEmpty()) {
-                sort.forEach((field, direction) -> {
-                    Sort.Direction sortDirection = direction.equalsIgnoreCase("asc") ?
-                            Sort.Direction.ASC : Sort.Direction.DESC;
-                    orders.add(new Sort.Order(sortDirection, field));
-                });
-            } else {
-                // Default sort by createdAt DESC if no sort specified
-                orders.add(Sort.Order.desc("createdAt"));
-            }
-
-            return PageRequest.of(getPage() - 1, getLimit(), Sort.by(orders));
+            return PageRequest.of(getPage() - 1, getLimit());
         }
     }
 

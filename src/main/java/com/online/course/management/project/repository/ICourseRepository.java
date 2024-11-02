@@ -37,10 +37,7 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
              LEFT JOIN course_categories cc ON c.id = cc.course_id
              LEFT JOIN categories cat ON cc.category_id = cat.id
             WHERE c.instructor_id = :instructorId
-             AND (CASE\s
-                 WHEN :includeArchived = true THEN true
-                 ELSE c.status != 'ARCHIVED'
-             END)
+             AND (IF(:includeArchived = true, true, c.status != 'ARCHIVED'))
              GROUP BY c.id, u.id, u.username, u.email, u.real_name
              """,
             countQuery = """
@@ -121,38 +118,44 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
 
     @Query(value = """
             SELECT DISTINCT
-                c.*,
-                u.username as instructor_username,
-                u.email as instructor_email,
-                u.real_name as instructor_name,
-                GROUP_CONCAT(DISTINCT cat.name ORDER BY cat.name) as category_names
-            FROM courses c
-            LEFT JOIN users u ON c.instructor_id = u.id
-            LEFT JOIN course_categories cc ON c.id = cc.course_id
-            LEFT JOIN categories cat ON cc.category_id = cat.id
-            WHERE c.deleted_at IS NULL
-            AND (:includeArchived = true OR c.status != 'ARCHIVED')
-            AND (:title IS NULL OR LOWER(c.title) LIKE CONCAT('%', LOWER(:title), '%'))
-            AND (:status IS NULL OR c.status = :status)
-            AND (:instructorName IS NULL OR LOWER(u.real_name) LIKE CONCAT('%', LOWER(:instructorName), '%'))
-            AND (:fromDate IS NULL OR c.created_at >= :fromDate)
-            AND (:toDate IS NULL OR c.created_at <= :toDate)
-            AND (COALESCE(:categoryIds) IS NULL OR cc.category_id IN (:categoryIds))
-            GROUP BY c.id, u.username, u.email, u.real_name
+                        c.*,
+                        u.username as instructor_username,
+                        u.email as instructor_email,
+                        u.real_name as instructor_name,
+                        GROUP_CONCAT(DISTINCT cat.name ORDER BY cat.name) as category_names
+                    FROM courses c
+                    LEFT JOIN users u ON c.instructor_id = u.id
+                    LEFT JOIN course_categories cc ON c.id = cc.course_id
+                    LEFT JOIN categories cat ON cc.category_id = cat.id
+                    WHERE (:title IS NULL OR LOWER(c.title) LIKE CONCAT('%', LOWER(:title), '%'))
+                    AND (IF(:includeArchived = true, true, c.status != 'ARCHIVED'))
+                    AND (:status IS NULL OR c.status = :status)
+                    AND (:instructorName IS NULL OR LOWER(u.real_name) LIKE CONCAT('%', LOWER(:instructorName), '%'))
+                    AND (:fromDate IS NULL OR c.created_at >= :fromDate)
+                    AND (:toDate IS NULL OR c.created_at <= :toDate)
+                    AND cc.category_id IN (:categoryIds)
+                    GROUP BY\s
+                        c.id,
+                        u.id,
+                        u.username,
+                        u.email,
+                        u.real_name,
+                        c.status,
+                        c.updated_at,
+                        c.created_at
             """,
             countQuery = """
-                        SELECT COUNT(DISTINCT c.id)
+                    SELECT COUNT(c.id)
                         FROM courses c
+                        JOIN course_categories cc ON c.id = cc.course_id
                         LEFT JOIN users u ON c.instructor_id = u.id
-                        LEFT JOIN course_categories cc ON c.id = cc.course_id
-                        WHERE c.deleted_at IS NULL
-                        AND (:includeArchived = true OR c.status != 'ARCHIVED')
-                        AND (:title IS NULL OR LOWER(c.title) LIKE CONCAT('%', LOWER(:title), '%'))
+                        WHERE (:title IS NULL OR LOWER(c.title) LIKE CONCAT('%', LOWER(:title), '%'))
+                        AND (IF(:includeArchived = true, true, c.status != 'ARCHIVED'))
                         AND (:status IS NULL OR c.status = :status)
                         AND (:instructorName IS NULL OR LOWER(u.real_name) LIKE CONCAT('%', LOWER(:instructorName), '%'))
                         AND (:fromDate IS NULL OR c.created_at >= :fromDate)
                         AND (:toDate IS NULL OR c.created_at <= :toDate)
-                        AND (COALESCE(:categoryIds) IS NULL OR cc.category_id IN (:categoryIds))
+                        AND cc.category_id IN (:categoryIds)
                     """,
             nativeQuery = true)
     Page<Course> searchCourses(
@@ -169,7 +172,7 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
     // Archive operation (special form of soft delete)
     @Modifying
     @Query(value = """
-            UPDATE courses 
+            UPDATE courses
             SET status = 'ARCHIVED',
                 deleted_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
@@ -179,11 +182,11 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
 
     @Modifying
     @Query(value = """
-            UPDATE courses 
+            UPDATE courses
             SET status = 'DRAFT',
                 deleted_at = NULL,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = :courseId 
+            WHERE id = :courseId
             AND status = 'ARCHIVED'
             """, nativeQuery = true)
     void unarchiveCourse(@Param("courseId") Long courseId);

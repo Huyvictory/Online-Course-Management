@@ -353,12 +353,6 @@ public class CourseServiceImpl implements ICourseService {
         return course.getInstructor().getId().equals(getCurrentUser().getId());
     }
 
-    private void validateAdminRole() {
-        if (!hasAdminRole()) {
-            throw new ForbiddenException("Admin role required for this operation");
-        }
-    }
-
     private boolean hasAdminRole() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return authentication.getAuthorities().stream()
@@ -375,36 +369,52 @@ public class CourseServiceImpl implements ICourseService {
 
     // Update the helper method to handle Sort conversion
     private Sort createSort(Map<String, String> sortParams) {
+        log.info("Sort params received: {}", sortParams);
+
         if (sortParams == null || sortParams.isEmpty()) {
             return Sort.by(Sort.Direction.DESC, DEFAULT_SORT_FIELD);
         }
 
-        validateSortFields(sortParams); // Validate before creating Sort
+        // Define mapping of sort fields to actual columns
+        Map<String, String> fieldMappings = Map.of(
+                "title", "title",
+                "created_at", "created_at",
+                "updated_at", "updated_at",
+                "status", "status",
+                "username", "instructor_username",
+                "email", "instructor_email"
+        );
 
+        // Create sort orders dynamically
         List<Sort.Order> orders = sortParams.entrySet().stream()
-                .map(entry -> new Sort.Order(
-                        entry.getValue().equalsIgnoreCase("asc") ?
-                                Sort.Direction.ASC : Sort.Direction.DESC,
-                        entry.getKey()
-                ))
+                .map(entry -> {
+                    String mappedField = fieldMappings.getOrDefault(entry.getKey(), entry.getKey());
+                    Sort.Direction direction = entry.getValue().equalsIgnoreCase("asc") ?
+                            Sort.Direction.ASC : Sort.Direction.DESC;
+
+                    log.info("Creating sort order - field: {}, mapped to: {}, direction: {}",
+                            entry.getKey(), mappedField, direction);
+
+                    return new Sort.Order(direction, mappedField);
+                })
                 .collect(Collectors.toList());
 
+        log.info("Final sort orders: {}", orders);
         return Sort.by(orders);
     }
 
     // Update the helper method to include all valid sort fields
     private void validateSortFields(Map<String, String> sort) {
-        if (sort == null) return;
-
         Set<String> validFields = Set.of(
                 "title",
-                "createdAt",
-                "updatedAt",
+                "created_at",
+                "updated_at",
                 "status",
-                "instructorName",
-                "categoryCount"
+                "username",
+                "email"
         );
 
+        // Validate fields
         Set<String> invalidFields = sort.keySet().stream()
                 .filter(field -> !validFields.contains(field))
                 .collect(Collectors.toSet());
@@ -416,6 +426,7 @@ public class CourseServiceImpl implements ICourseService {
             );
         }
 
+        // Validate directions
         sort.values().forEach(direction -> {
             if (!direction.equalsIgnoreCase("asc") && !direction.equalsIgnoreCase("desc")) {
                 throw new InvalidRequestException(

@@ -110,4 +110,20 @@ public class CourseController {
 
         return ResponseEntity.ok(listLatestCourses);
     }
+
+    @PostMapping(CourseConstants.SEARCH_PATH)
+    public ResponseEntity<PaginationDto.PaginationResponseDto<CourseDTOS.CourseDetailsResponseDto>> searchCourses(
+            @Valid @RequestBody CourseDTOS.SearchCourseRequestDTO searchRequest) {
+
+        var coursesPage = courseService.searchCourses(searchRequest, searchRequest.toPageable());
+
+        var response = new PaginationDto.PaginationResponseDto<>(
+                coursesPage.getContent(),
+                coursesPage.getNumber() + 1,
+                coursesPage.getSize(),
+                coursesPage.getTotalElements()
+        );
+
+        return ResponseEntity.ok(response);
+    }
 }

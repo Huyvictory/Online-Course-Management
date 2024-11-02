@@ -40,8 +40,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-            throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
 
         try {
             // Skip authentication for permitted paths
@@ -63,8 +62,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     String username = jwtUtil.extractUsername(jwt);
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-                    UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                     SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -85,11 +83,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         log.info("Checking if request should be skipped: {}", path);
 
         // Define patterns for public endpoints
-        List<String> publicEndpoints = Arrays.asList(
-                "/api/v1/users/login",
-                "/api/v1/users/register",
-                "/error"
-        );
+        List<String> publicEndpoints = Arrays.asList("/api/v1/users/login", "/api/v1/users/register", "/error");
 
         // Check exact matches first
         if (publicEndpoints.contains(path) || request.getMethod().equals("OPTIONS")) {
@@ -98,8 +92,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         // Check course-related patterns
         if (path.matches("/api/v1/courses/\\d+") ||    // Matches /courses/{id}
-                path.equals("/api/v1/courses/search"
-                ) || path.equals("/api/v1/courses/search-instructor") || path.equals("/api/v1/courses/search-status") || path.equals("/api/v1/courses/search-latest")) {    // Matches /courses/search
+                path.equals("/api/v1/courses/search") || path.equals("/api/v1/courses/search-instructor") || path.equals("/api/v1/courses/search-status") || path.equals("/api/v1/courses/search-latest")) {    // Matches /courses/search
             return request.getMethod().equals("POST");   // Only allow POST requests
         }
 
@@ -123,10 +116,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
 
-        ErrorResponseDTO errorResponse = new ErrorResponseDTO(
-                message,
-                status.value()
-        );
+        ErrorResponseDTO errorResponse = new ErrorResponseDTO(message, status.value());
 
         objectMapper.writeValue(response.getOutputStream(), errorResponse);
     }
