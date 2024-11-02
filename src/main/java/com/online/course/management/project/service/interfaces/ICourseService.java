@@ -33,7 +33,7 @@ public interface ICourseService {
     /**
      * Gets course details by ID
      */
-    Optional<CourseDTOS.CourseDetailsResponseDto> getCourseById(Long id);
+    CourseDTOS.CourseDetailsResponseDto getCourseById(Long id);
 
     /**
      * Searches courses with filters and pagination
@@ -54,19 +54,4 @@ public interface ICourseService {
      * Gets the latest courses
      */
     List<CourseDTOS.CourseDetailsResponseDto> getLatestCourses(int limit);
-
-    /**
-     * Count courses by instructor
-     */
-    long countByInstructor(Long instructorId);
-
-    /**
-     * Count courses by status
-     */
-    long countByStatus(CourseStatus status);
-
-    /**
-     * Count courses in a category
-     */
-    long countCoursesInCategory(Long categoryId);
 }

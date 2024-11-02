@@ -22,6 +22,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 @Component
 @Slf4j
@@ -80,9 +82,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private boolean shouldSkipAuthentication(HttpServletRequest request) {
         String path = request.getServletPath();
-        return path.equals("/api/v1/users/login") ||
-                path.equals("/api/v1/users/register") ||
-                request.getMethod().equals("OPTIONS");
+        log.info("Checking if request should be skipped: {}", path);
+
+        // Define patterns for public endpoints
+        List<String> publicEndpoints = Arrays.asList(
+                "/api/v1/users/login",
+                "/api/v1/users/register",
+                "/error"
+        );
+
+        // Check exact matches first
+        if (publicEndpoints.contains(path) || request.getMethod().equals("OPTIONS")) {
+            return true;
+        }
+
+        // Check course-related patterns
+        if (path.matches("/api/v1/courses/\\d+") ||    // Matches /courses/{id}
+                path.equals("/api/v1/courses/search"
+                ) || path.equals("/api/v1/courses/search-instructor") || path.equals("/api/v1/courses/search-status") || path.equals("/api/v1/courses/search-latest")) {    // Matches /courses/search
+            return request.getMethod().equals("POST");   // Only allow POST requests
+        }
+
+        return false;
     }
 
     private String getJwtFromRequest(HttpServletRequest request) {

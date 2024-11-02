@@ -25,28 +25,32 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
 
 
     @Query(value = """
-            SELECT DISTINCT
-                c.*,
-                u.id as instructor_id,
-                u.username as instructor_username,
-                u.email as instructor_email,
-                u.real_name as instructor_name,
-                GROUP_CONCAT(DISTINCT cat.name ORDER BY cat.name) as category_names
-            FROM courses c
-            LEFT JOIN users u ON c.instructor_id = u.id
-            LEFT JOIN course_categories cc ON c.id = cc.course_id
-            LEFT JOIN categories cat ON cc.category_id = cat.id
-            WHERE c.deleted_at IS NULL
-            AND c.instructor_id = :instructorId
-            AND (:includeArchived = true OR c.status != 'ARCHIVED')
-            GROUP BY c.id, u.id, u.username, u.email, u.real_name
-            """,
+             SELECT DISTINCT
+                 c.*,
+                 u.id as instructor_user_id,
+                 u.username as instructor_username,
+                 u.email as instructor_email,
+                 u.real_name as instructor_name,
+                 GROUP_CONCAT(DISTINCT cat.name ORDER BY cat.name) as category_names
+             FROM courses c
+             LEFT JOIN users u ON c.instructor_id = u.id
+             LEFT JOIN course_categories cc ON c.id = cc.course_id
+             LEFT JOIN categories cat ON cc.category_id = cat.id
+            WHERE c.instructor_id = :instructorId
+             AND (CASE\s
+                 WHEN :includeArchived = true THEN true
+                 ELSE c.status != 'ARCHIVED'
+             END)
+             GROUP BY c.id, u.id, u.username, u.email, u.real_name
+             """,
             countQuery = """
                     SELECT COUNT(DISTINCT c.id)
                     FROM courses c
                     WHERE c.instructor_id = :instructorId
-                    AND c.deleted_at IS NULL
-                    AND (:includeArchived = true OR c.status != 'ARCHIVED')
+                    AND (CASE\s
+                        WHEN :includeArchived = true THEN true
+                        ELSE c.status != 'ARCHIVED'
+                    END)
                     """,
             nativeQuery = true)
     Page<Course> findByInstructorId(
@@ -67,6 +71,7 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
             LEFT JOIN categories cat ON cc.category_id = cat.id
             WHERE c.id = :id 
             GROUP BY c.id, u.username, u.email, u.real_name
+            HAVING c.id IS NOT NULL
             """, nativeQuery = true)
     Optional<Course> findByIdWithDetails(@Param("id") Long id);
 
@@ -115,30 +120,6 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
     List<Course> findLatestCourses(@Param("limit") int limit);
 
     @Query(value = """
-            SELECT COUNT(DISTINCT c.id)
-            FROM courses c
-            WHERE c.instructor_id = :instructorId
-            """, nativeQuery = true)
-    long countByInstructorId(@Param("instructorId") Long instructorId);
-
-    @Query(value = """
-            SELECT COUNT(DISTINCT c.id)
-            FROM courses c
-            INNER JOIN course_categories cc ON c.id = cc.course_id
-            WHERE cc.category_id = :categoryId
-            """, nativeQuery = true)
-    long countCoursesInCategory(@Param("categoryId") Long categoryId);
-
-    @Query(value = """
-            SELECT COUNT(DISTINCT c.id)
-            FROM courses c
-            WHERE c.status = :status
-            AND c.deleted_at IS NULL
-            """, nativeQuery = true)
-    long countByStatus(@Param("status") String status);
-
-
-    @Query(value = """
             SELECT DISTINCT
                 c.*,
                 u.username as instructor_username,
@@ -183,23 +164,6 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
             @Param("categoryIds") Set<Long> categoryIds,
             @Param("includeArchived") Boolean includeArchived,
             Pageable pageable
-    );
-
-    // Update operations
-    @Modifying
-    @Query(value = """
-            UPDATE courses 
-            SET title = :title,
-                description = :description,
-                status = :status,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = :id
-            """, nativeQuery = true)
-    int updateCourse(
-            @Param("id") Long id,
-            @Param("title") String title,
-            @Param("description") String description,
-            @Param("status") String status
     );
 
     // Archive operation (special form of soft delete)

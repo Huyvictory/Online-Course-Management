@@ -43,7 +43,7 @@ public class CourseServiceImpl implements ICourseService {
     private final ICategoryRepository categoryRepository;
     private final CourseMapper courseMapper;
 
-    private static final String DEFAULT_SORT_FIELD = "createdAt";
+    private static final String DEFAULT_SORT_FIELD = "created_at";
     private static final String DEFAULT_SORT_ORDER = "desc";
 
     @Autowired
@@ -132,7 +132,7 @@ public class CourseServiceImpl implements ICourseService {
     @CacheEvict(value = "courses", key = "#id")
     public void archiveCourse(Long id) {
         log.info("Archiving course with id: {}", id);
-        Course course = getCourseWithValidation(id);
+        getCourseWithValidation(id);
         courseRepository.archiveCourse(id);
     }
 
@@ -141,17 +141,17 @@ public class CourseServiceImpl implements ICourseService {
     @CacheEvict(value = "courses", key = "#id")
     public void unarchiveCourse(Long id) {
         log.info("Unarchiving course with id: {}", id);
-        Course course = getCourseWithValidation(id);
+        getCourseWithValidation(id);
         courseRepository.unarchiveCourse(id);
     }
 
     @Override
     @Transactional(readOnly = true)
     @Cacheable(value = "courses", key = "#id")
-    public Optional<CourseDTOS.CourseDetailsResponseDto> getCourseById(Long id) {
+    public CourseDTOS.CourseDetailsResponseDto getCourseById(Long id) {
         log.info("Fetching course with id: {}", id);
-        return courseRepository.findByIdWithDetails(id)
-                .map(courseMapper::toDto);
+        Course course = GetCourseWithoutValidation(id);
+        return courseMapper.toDto(course);
     }
 
     @Override
@@ -196,27 +196,18 @@ public class CourseServiceImpl implements ICourseService {
             Long instructorId,
             boolean includeArchived,
             Pageable pageable) {
-        log.info("Fetching courses for instructor: {}", instructorId);
+        log.info("Fetching courses for instructor: {}, includeArchived: {}",
+                instructorId, includeArchived);
 
         if (!userRepository.existsById(instructorId)) {
             throw new ResourceNotFoundException("Instructor not found");
         }
 
-        // Use default sort if none provided
-        if (!pageable.getSort().isSorted()) {
-            pageable = PageRequest.of(
-                    pageable.getPageNumber(),
-                    pageable.getPageSize(),
-                    Sort.by(Sort.Direction.DESC, DEFAULT_SORT_FIELD)
-            );
-        } else {
-            // Validate provided sort
-            Map<String, String> sortMap = new HashMap<>();
-            pageable.getSort().forEach(order ->
-                    sortMap.put(order.getProperty(), order.getDirection().name().toLowerCase())
-            );
-            validateSortFields(sortMap);
-        }
+        pageable = PageRequest.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                Sort.by(Sort.Direction.DESC, DEFAULT_SORT_FIELD)
+        );
 
         return courseRepository.findByInstructorId(instructorId, includeArchived, pageable)
                 .map(courseMapper::toDto);
@@ -230,20 +221,12 @@ public class CourseServiceImpl implements ICourseService {
         log.info("Fetching courses with status: {}", status);
 
         // Use default sort if none provided
-        if (!pageable.getSort().isSorted()) {
-            pageable = PageRequest.of(
-                    pageable.getPageNumber(),
-                    pageable.getPageSize(),
-                    Sort.by(Sort.Direction.DESC, DEFAULT_SORT_FIELD)
-            );
-        } else {
-            // Validate provided sort
-            Map<String, String> sortMap = new HashMap<>();
-            pageable.getSort().forEach(order ->
-                    sortMap.put(order.getProperty(), order.getDirection().name().toLowerCase())
-            );
-            validateSortFields(sortMap);
-        }
+
+        pageable = PageRequest.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                Sort.by(Sort.Direction.DESC, DEFAULT_SORT_FIELD)
+        );
 
         return courseRepository.findByStatus(status.name(), pageable)
                 .map(courseMapper::toDto);
@@ -260,20 +243,6 @@ public class CourseServiceImpl implements ICourseService {
                 .collect(Collectors.toList());
     }
 
-    @Override
-    public long countByInstructor(Long instructorId) {
-        return courseRepository.countByInstructorId(instructorId);
-    }
-
-    @Override
-    public long countByStatus(CourseStatus status) {
-        return courseRepository.countByStatus(status.name());
-    }
-
-    @Override
-    public long countCoursesInCategory(Long categoryId) {
-        return courseRepository.countCoursesInCategory(categoryId);
-    }
 
     // Helper methods
     private User determineInstructor(Long instructorId) {
@@ -361,6 +330,11 @@ public class CourseServiceImpl implements ICourseService {
                 .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
         validateCourseAccess(course);
         return course;
+    }
+
+    private Course GetCourseWithoutValidation(Long id) {
+        return courseRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
     }
 
     private User getCurrentUser() {

@@ -145,4 +145,34 @@ public class CourseDTOS {
     }
 
 
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    @EqualsAndHashCode(callSuper = true)
+    public static class SearchInstructorCourseRequestDTO extends PaginationDto.PaginationRequestDto {
+        @NotNull(message = "Instructor ID must not be null")
+        private Long instructorId;
+
+        private boolean includeArchived;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    @EqualsAndHashCode(callSuper = true)
+    public static class SearchStatusRequestDTO extends PaginationDto.PaginationRequestDto {
+        @NotNull(message = "Status must not be null")
+        private String status;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class SearchLatestCoursesRequestDTO {
+        private int limit = 10;
+    }
+
 }

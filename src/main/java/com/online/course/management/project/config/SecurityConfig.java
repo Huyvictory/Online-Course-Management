@@ -68,10 +68,9 @@ public class SecurityConfig {
                     logger.info("Session management set to STATELESS");
                 })
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/api/v1/users/register", "/api/v1/users/login", "/error").permitAll()
+                        .requestMatchers("/api/v1/users/register", "/api/v1/users/login", "/error", "/api/v1/courses/*").permitAll()
                         .anyRequest().authenticated()
                 )
-                .anonymous(anonymous -> anonymous.disable()) // Disable anonymous access
                 .userDetailsService(userDetailsService)
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
