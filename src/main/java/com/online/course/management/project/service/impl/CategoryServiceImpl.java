@@ -3,7 +3,6 @@ package com.online.course.management.project.service.impl;
 import com.online.course.management.project.dto.CategoryDTOs;
 import com.online.course.management.project.entity.Category;
 import com.online.course.management.project.exception.business.ForbiddenException;
-import com.online.course.management.project.exception.business.ResourceNotFoundException;
 import com.online.course.management.project.mapper.CategoryMapper;
 import com.online.course.management.project.repository.ICategoryRepository;
 import com.online.course.management.project.service.interfaces.ICategoryService;
