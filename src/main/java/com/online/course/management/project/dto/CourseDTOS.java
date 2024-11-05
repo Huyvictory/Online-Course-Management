@@ -51,6 +51,7 @@ public class CourseDTOS {
         private String title;
 
         @Size(max = 1000, message = "Description must not exceed 1000 characters")
+        @NotBlank(message = "Description is required")
         private String description;
 
         private Set<Long> categoryIds;
@@ -65,9 +66,11 @@ public class CourseDTOS {
     @AllArgsConstructor
     public static class UpdateCourseRequestDTO {
         @Size(max = 255, message = "Title must not exceed 255 characters")
+        @NotBlank(message = "Title is required")
         private String title;
 
         @Size(max = 1000, message = "Description must not exceed 1000 characters")
+        @NotBlank(message = "Description is required")
         private String description;
 
         private CourseStatus status;
