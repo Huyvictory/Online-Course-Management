@@ -10,9 +10,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 @Entity
 @Table(name = "courses")
@@ -58,6 +56,10 @@ public class Course {
             inverseJoinColumns = @JoinColumn(name = "category_id"))
     private Set<Category> categories = new HashSet<>();
 
+    // New relationship added for Phase 3
+    @OneToMany(mappedBy = "course", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Chapter> chapters = new ArrayList<>();
+
     public void addCategory(Category category) {
         categories.add(category);
         category.getCourses().add(this);
@@ -66,6 +68,23 @@ public class Course {
     public void removeCategory(Category category) {
         categories.remove(category);
         category.getCourses().remove(this);
+    }
+
+    // Helper methods for chapter management
+    public void addChapter(Chapter chapter) {
+        chapters.add(chapter);
+        chapter.setCourse(this);
+        chapter.setOrder(chapters.size()); // Auto-set the order for new chapters
+    }
+
+    public void removeChapter(Chapter chapter) {
+        if (chapters.remove(chapter)) {
+            chapter.setCourse(null);
+            // Reorder remaining chapters
+            for (int i = 0; i < chapters.size(); i++) {
+                chapters.get(i).setOrder(i + 1);
+            }
+        }
     }
 
     @Override
