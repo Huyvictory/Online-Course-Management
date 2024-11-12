@@ -167,7 +167,7 @@ public interface IChapterRepository extends JpaRepository<Chapter, Long>, JpaSpe
             and lessons.deleted_at is not null;
             """,
             nativeQuery = true)
-    void batchRemoveChapters(@Param("chapterIds") List<Long> chapterIds);
+    void batchRestoreChapters(@Param("chapterIds") List<Long> chapterIds);
 
     // Check if chapters exist
     @Query("SELECT COUNT(c) = :expectedCount FROM Chapter c WHERE c.id IN :ids")
