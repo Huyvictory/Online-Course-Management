@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.query.Procedure;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
@@ -110,21 +111,13 @@ public interface IChapterRepository extends JpaRepository<Chapter, Long>, JpaSpe
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = :id
             """, nativeQuery = true)
-    void updateChapter(
+    void batchUpdateChapter(
             @Param("id") Long id,
             @Param("title") String title,
             @Param("description") String description,
             @Param("courseId") Long courseId,
             @Param("status") String status
     );
-
-    // Check if chapters exist
-    @Query("SELECT COUNT(c) = :expectedCount FROM Chapter c WHERE c.id IN :ids")
-    boolean validateChaptersExist(@Param("ids") List<Long> ids, @Param("expectedCount") int expectedCount);
-
-    // Check if course exists
-    @Query("SELECT COUNT(c) > 0 FROM Course c WHERE c.id = :courseId AND c.deletedAt IS NULL")
-    boolean courseExists(@Param("courseId") Long courseId)
 
     // Batch soft delete chapters and their lessons
     @Modifying
@@ -176,6 +169,14 @@ public interface IChapterRepository extends JpaRepository<Chapter, Long>, JpaSpe
             nativeQuery = true)
     void batchRemoveChapters(@Param("chapterIds") List<Long> chapterIds);
 
+    // Check if chapters exist
+    @Query("SELECT COUNT(c) = :expectedCount FROM Chapter c WHERE c.id IN :ids")
+    boolean validateChaptersExist(@Param("ids") List<Long> ids, @Param("expectedCount") int expectedCount);
+
+    // Check if course exists
+    @Query("SELECT COUNT(c) > 0 FROM Course c WHERE c.id = :courseId AND c.deletedAt IS NULL")
+    boolean courseExists(@Param("courseId") Long courseId);
+
     // Validate chapter order in course
     @Query("""
             SELECT COUNT(ch) > 0 
@@ -185,9 +186,13 @@ public interface IChapterRepository extends JpaRepository<Chapter, Long>, JpaSpe
             AND ch.id != :chapterId 
             AND ch.deletedAt IS NULL
             """)
-    boolean isOrderNumberTaken(
+    boolean isOrderNumberChapterTaken(
             @Param("courseId") Long courseId,
             @Param("order") Integer order,
             @Param("chapterId") Long chapterId
     );
+
+    // Call stored procedure to reorder chapters
+    @Procedure(procedureName = "sp_reorder_chapters")
+    void reorderChapters(@Param("p_course_id") Long courseId);
 }
