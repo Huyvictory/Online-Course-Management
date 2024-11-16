@@ -9,11 +9,13 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.query.Procedure;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+@Repository
 public interface ILessonRepository extends JpaRepository<Lesson, Long>, JpaSpecificationExecutor<Lesson> {
 
     // Find Lesson details by id
@@ -28,7 +30,7 @@ public interface ILessonRepository extends JpaRepository<Lesson, Long>, JpaSpeci
                      left join courses c on c.id = ch.course_id
             where l.id = :lesson_id
             """, nativeQuery = true)
-    Optional<Lesson> findLessonDetailsById(@Param("id") Long lesson_id);
+    Optional<Lesson> findLessonDetailsById(@Param("lesson_id") Long lesson_id);
 
     // Search lessons with filters
     @Query(value = """

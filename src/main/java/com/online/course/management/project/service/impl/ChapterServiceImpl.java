@@ -54,8 +54,7 @@ public class ChapterServiceImpl implements IChapterService {
         log.info("Creating new chapter for course ID: {}", request.getCourseId());
 
         // Get and validate course
-        Course course = courseServiceUtils.GetCourseWithoutValidation(request.getCourseId());
-        courseServiceUtils.validateCourseAccess(course);
+        Course course = courseServiceUtils.getCourseWithValidation(request.getCourseId());
 
         // Validate order number
         var takenChapterOrder = chapterServiceUtils.validateChapterOrder(course.getId(), request.getOrder(), null);
@@ -93,8 +92,7 @@ public class ChapterServiceImpl implements IChapterService {
         }
 
         // Get and validate course accessibility
-        Course course = courseServiceUtils.GetCourseWithoutValidation(request.getCourseId());
-        courseServiceUtils.validateCourseAccess(course);
+        Course course = courseServiceUtils.getCourseWithValidation(request.getCourseId());
 
         List<Chapter> chaptersToCreate = new ArrayList<>();
         List<String> takenChapterOrders = new ArrayList<>();
@@ -122,8 +120,10 @@ public class ChapterServiceImpl implements IChapterService {
             );
         }
 
-        List<Chapter> savedChapters = chapterRepository.saveAll(chaptersToCreate);
-        log.info("Successfully created {} chapters", savedChapters.size());
+        chapterRepository.batchCreateChapters(chaptersToCreate);
+        log.info("Successfully created {} chapters", request.getChapters().size());
+
+        List<Chapter> savedChapters = chapterRepository.findAllChaptersByCourseId(request.getCourseId());
 
         return savedChapters.stream()
                 .map(chapterMapper::toDto)
@@ -161,7 +161,10 @@ public class ChapterServiceImpl implements IChapterService {
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
-            chapterServiceUtils.handleArchiveStatus(chapter, request.getStatus());
+
+            if (request.getStatus() == CourseStatus.ARCHIVED) {
+                chapterServiceUtils.handleArchiveStatus(chapter, request.getStatus());
+            }
         }
 
         chapterMapper.updateChapterFromDto(request, chapter);
@@ -205,7 +208,6 @@ public class ChapterServiceImpl implements IChapterService {
                 }
             }
 
-
             // Validate status if provided
             if (updateDto.getStatus() != null) {
                 try {
@@ -213,7 +215,10 @@ public class ChapterServiceImpl implements IChapterService {
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException(e);
                 }
-                chapterServiceUtils.handleArchiveStatus(chapter, updateDto.getStatus());
+
+                if (updateDto.getStatus() == CourseStatus.ARCHIVED) {
+                    chapterServiceUtils.handleArchiveStatus(chapter, updateDto.getStatus());
+                }
             }
 
             chapterMapper.updateChapterFromDto(updateDto, chapter);
@@ -227,8 +232,24 @@ public class ChapterServiceImpl implements IChapterService {
             );
         }
 
-        List<Chapter> savedChapters = chapterRepository.saveAll(updatedChapters);
-        log.info("Successfully updated {} chapters", savedChapters.size());
+        // Build CASE statements
+        String titleCases = updatedChapters.stream()
+                .map(ch -> String.format("WHEN %d THEN '%s'", ch.getId(), ch.getTitle()))
+                .collect(Collectors.joining(" "));
+
+        String descriptionCases = updatedChapters.stream()
+                .map(ch -> String.format("WHEN %d THEN '%s'", ch.getId(), ch.getDescription()))
+                .collect(Collectors.joining(" "));
+
+        String statusCases = updatedChapters.stream()
+                .map(ch -> String.format("WHEN %d THEN '%s'", ch.getId(), ch.getStatus().name()))
+                .collect(Collectors.joining(" "));
+
+        chapterRepository.batchUpdateChapters(ids, titleCases, descriptionCases, statusCases);
+
+        log.info("Successfully updated {} chapters", request.getChapters().size());
+
+        List<Chapter> savedChapters = chapterRepository.findRecentUpdatedChapters(ids);
 
         return savedChapters.stream()
                 .map(chapterMapper::toDto)
@@ -327,11 +348,11 @@ public class ChapterServiceImpl implements IChapterService {
 
         // Validate and create sort if provided
         if (request.getSort() != null && !request.getSort().isEmpty()) {
-            courseServiceUtils.validateSortFields(request.getSort());
+            chapterServiceUtils.validateSortFields(request.getSort());
             pageable = PageRequest.of(
                     pageable.getPageNumber(),
                     pageable.getPageSize(),
-                    courseServiceUtils.createSort(request.getSort())
+                    chapterServiceUtils.createChapterSort(request.getSort())
             );
         }
 
@@ -358,32 +379,12 @@ public class ChapterServiceImpl implements IChapterService {
 
     @Override
     @Transactional
-    public void reorderChapters(Long courseId, List<Long> orderedChapterIds) {
+    public void reorderChapters(Long courseId) {
         log.info("Reordering chapters for course ID: {}", courseId);
-
-        if (orderedChapterIds == null || orderedChapterIds.isEmpty()) {
-            throw new InvalidRequestException("No chapter IDs provided for reordering");
-        }
-
-        Course course = courseServiceUtils.GetCourseWithoutValidation(courseId);
-        courseServiceUtils.validateCourseAccess(course);
-
-        // Verify all chapters exist and belong to the course
-        for (Long chapterId : orderedChapterIds) {
-            Chapter chapter = chapterServiceUtils.getChapterOrThrow(chapterId);
-            if (!chapter.getCourse().getId().equals(courseId)) {
-                throw new InvalidRequestException(
-                        String.format("Chapter %d does not belong to course %d", chapterId, courseId)
-                );
-            }
-        }
+        courseServiceUtils.getCourseWithValidation(courseId);
 
         // Update order numbers
-        for (int i = 0; i < orderedChapterIds.size(); i++) {
-            Chapter chapter = chapterServiceUtils.getChapterOrThrow(orderedChapterIds.get(i));
-            chapter.setOrder(i + 1);
-            chapterRepository.save(chapter);
-        }
+        chapterRepository.reorderChapters(courseId);
 
         log.info("Chapters reordered successfully");
     }

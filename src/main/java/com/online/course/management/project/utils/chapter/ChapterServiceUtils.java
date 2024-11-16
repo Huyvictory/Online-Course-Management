@@ -146,11 +146,7 @@ public class ChapterServiceUtils {
      * Handles archival status changes for a chapter
      */
     public void handleArchiveStatus(Chapter chapter, CourseStatus newStatus) {
-        if (newStatus == CourseStatus.ARCHIVED) {
-            chapter.setDeletedAt(LocalDateTime.now());
-        } else if (chapter.getStatus() == CourseStatus.ARCHIVED) {
-            chapter.setDeletedAt(null);
-        }
+        chapter.setDeletedAt(LocalDateTime.now());
     }
 
     /**
