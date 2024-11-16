@@ -10,11 +10,13 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.query.Procedure;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+@Repository
 public interface IChapterRepository extends JpaRepository<Chapter, Long>, JpaSpecificationExecutor<Chapter> {
 
     // Create & update operations
@@ -103,21 +105,33 @@ public interface IChapterRepository extends JpaRepository<Chapter, Long>, JpaSpe
     @Modifying
     @Query(value = """
             UPDATE chapters 
-            SET 
-                title = :title,
-                description = :description,
-                course_id = :courseId,
-                status = :status,
+            SET title = CASE id 
+                    :titleCases
+                END,
+                description = CASE id
+                    :descriptionCases
+                END,
+                status = CASE id
+                    :statusCases
+                END,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = :id
+            WHERE id IN :ids
             """, nativeQuery = true)
-    void batchUpdateChapter(
-            @Param("id") Long id,
-            @Param("title") String title,
-            @Param("description") String description,
-            @Param("courseId") Long courseId,
-            @Param("status") String status
+    void batchUpdateChapters(
+            @Param("ids") List<Long> ids,
+            @Param("titleCases") String titleCases,
+            @Param("descriptionCases") String descriptionCases,
+            @Param("statusCases") String statusCases
     );
+
+    @Query(value = """ 
+            select c.*
+            from chapters c
+            where c.chapter_id in (:chapterIds)
+            and c.delete_at is null
+            order by c.order_number
+            """, nativeQuery = true)
+    List<Chapter> findRecentUpdatedChapters(List<Long> chapterIds);
 
     // Batch soft delete chapters and their lessons
     @Modifying

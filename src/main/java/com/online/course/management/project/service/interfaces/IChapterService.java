@@ -129,7 +129,7 @@ public interface IChapterService {
      * - Current user has permission to modify the course
      * Updates order numbers to maintain sequence
      */
-    void reorderChapters(Long courseId, List<Long> orderedChapterIds);
+    void reorderChapters(Long courseId);
 
     /**
      * Validates if a chapter exists and is accessible
