@@ -14,7 +14,7 @@ public interface IChapterService {
      * - Order number is unique within the course
      * - Current user has permission to modify the course
      */
-    ChapterDTOs.ChapterResponseDto createChapter(ChapterDTOs.CreateChapterDTO request);
+    ChapterDTOs.ChapterDetailResponseDto createChapter(ChapterDTOs.CreateChapterDTO request);
 
     /**
      * Creates multiple chapters at once for a course
@@ -24,7 +24,7 @@ public interface IChapterService {
      * - Current user has permission to modify the course
      * - Maximum 50 chapters per request
      */
-    List<ChapterDTOs.ChapterResponseDto> bulkCreateChapters(ChapterDTOs.BulkCreateChapterDTO request);
+    List<ChapterDTOs.ChapterDetailResponseDto> bulkCreateChapters(ChapterDTOs.BulkCreateChapterDTO request);
 
     /**
      * Updates an existing chapter

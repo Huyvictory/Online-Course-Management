@@ -24,7 +24,7 @@ public interface ChapterMapper {
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "course", ignore = true)
-    @Mapping(target = "lessons", expression = "java(mapCreateLessonDTOs(dto.getLessons()))")
+    @Mapping(target = "lessons", expression = "java(mapCreateLessonDTOs(dto.getLessons(), chapter))")
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "deletedAt", ignore = true)
@@ -92,7 +92,7 @@ public interface ChapterMapper {
     }
 
     @Named("mapCreateLessonDTOs")
-    default List<Lesson> mapCreateLessonDTOs(List<LessonDTOs.CreateLessonDTO> lessonDtos) {
+    default List<Lesson> mapCreateLessonDTOs(List<LessonDTOs.CreateLessonDTO> lessonDtos, Chapter chapter) {
         if (lessonDtos == null) {
             return null;
         }
@@ -104,7 +104,8 @@ public interface ChapterMapper {
                     lesson.setContent(dto.getContent());
                     lesson.setOrder(dto.getOrder());
                     lesson.setType(dto.getType());
-                    lesson.setStatus(dto.getStatus() != null ? dto.getStatus() : CourseStatus.DRAFT);
+                    lesson.setStatus(CourseStatus.DRAFT);
+                    lesson.setChapter(chapter);
                     return lesson;
                 })
                 .toList();

@@ -49,15 +49,15 @@ public class ChapterServiceUtils {
     /**
      * Validates chapter order number within a course
      */
-    public String validateChapterOrder(Long courseId, Integer order, Long excludeChapterId) {
-        log.debug("Validating order {} for course {} (excluding chapter {})",
-                order, courseId, excludeChapterId);
+    public String validateChapterOrder(Long courseId, Integer order) {
+        log.debug("Validating order {} for course {}",
+                order, courseId);
 
         if (order == null || order < 1) {
             throw new InvalidRequestException("Order must be greater than 0");
         }
 
-        if (chapterRepository.isOrderNumberChapterTaken(courseId, order, excludeChapterId)) {
+        if (chapterRepository.isOrderNumberChapterTaken(courseId, order)) {
             return String.format("Order number %d is already taken in this course", order);
         }
 

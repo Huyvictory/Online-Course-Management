@@ -69,9 +69,16 @@ public class Chapter {
 
     // Helper methods
     public void addLesson(Lesson lesson) {
-        lessons.add(lesson);
-        lesson.setChapter(this);
-        lesson.setOrder(lessons.size());
+        if (lessons == null) {
+            lessons = new ArrayList<>();
+        }
+
+        // Only add if not already present to prevent duplicates
+        if (!lessons.contains(lesson)) {
+            lessons.add(lesson);
+            lesson.setChapter(this);
+            lesson.setOrder(lessons.size()); // Set proper order
+        }
     }
 
     public void removeLesson(Lesson lesson) {
@@ -81,6 +88,17 @@ public class Chapter {
             for (int i = 0; i < lessons.size(); i++) {
                 lessons.get(i).setOrder(i + 1);
             }
+        }
+    }
+
+    public void setLessons(List<Lesson> newLessons) {
+        this.lessons.clear();
+        if (newLessons != null) {
+            // Instead, just maintain the provided order
+            newLessons.forEach(lesson -> {
+                lesson.setChapter(this);
+                this.lessons.add(lesson);
+            });
         }
     }
 
