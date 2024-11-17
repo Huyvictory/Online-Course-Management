@@ -193,17 +193,16 @@ public interface IChapterRepository extends JpaRepository<Chapter, Long>, JpaSpe
 
     // Validate chapter order in course
     @Query("""
-            SELECT COUNT(ch) > 0 
+            SELECT exists (
+            select 1
             FROM Chapter ch 
             WHERE ch.course.id = :courseId 
             AND ch.order = :order 
-            AND ch.id != :chapterId 
-            AND ch.deletedAt IS NULL
+            AND ch.deletedAt IS NULL )
             """)
     boolean isOrderNumberChapterTaken(
             @Param("courseId") Long courseId,
-            @Param("order") Integer order,
-            @Param("chapterId") Long chapterId
+            @Param("order") Integer order
     );
 
     // Call stored procedure to reorder chapters

@@ -126,9 +126,6 @@ public class ChapterDTOs {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class BulkCreateChapterDTO {
-        @NotNull(message = "Course ID is required")
-        private Long courseId;
-
         @NotEmpty(message = "At least one chapter is required")
         private List<CreateChapterDTO> chapters;
     }
