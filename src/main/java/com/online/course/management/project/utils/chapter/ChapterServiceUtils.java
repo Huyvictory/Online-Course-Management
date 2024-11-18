@@ -4,11 +4,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.online.course.management.project.entity.Chapter;
 import com.online.course.management.project.entity.Course;
+import com.online.course.management.project.entity.Lesson;
 import com.online.course.management.project.enums.CourseStatus;
 import com.online.course.management.project.exception.business.ForbiddenException;
 import com.online.course.management.project.exception.business.InvalidRequestException;
 import com.online.course.management.project.exception.business.ResourceNotFoundException;
-import com.online.course.management.project.repository.IChapterRepository;
+import com.online.course.management.project.repository.chapter.IChapterRepository;
 import com.online.course.management.project.utils.course.CourseServiceUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Sort;
@@ -145,8 +146,15 @@ public class ChapterServiceUtils {
     /**
      * Handles archival status changes for a chapter
      */
-    public void handleArchiveStatus(Chapter chapter, CourseStatus newStatus) {
+    public void handleArchiveStatus(Chapter chapter) {
         chapter.setDeletedAt(LocalDateTime.now());
+
+        if (chapter.getLessons() != null) {
+            for (Lesson lesson : chapter.getLessons()) {
+                lesson.setStatus(CourseStatus.ARCHIVED);
+                lesson.setDeletedAt(LocalDateTime.now());
+            }
+        }
     }
 
     /**

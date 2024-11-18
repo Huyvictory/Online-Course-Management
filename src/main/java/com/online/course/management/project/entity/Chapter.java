@@ -61,7 +61,6 @@ public class Chapter {
     @OneToMany(
             mappedBy = "chapter",
             cascade = CascadeType.ALL,
-            orphanRemoval = true,
             fetch = FetchType.LAZY
     )
     @OrderBy("order ASC")
@@ -99,6 +98,14 @@ public class Chapter {
                 lesson.setChapter(this);
                 this.lessons.add(lesson);
             });
+        }
+    }
+
+    // Add this method to manage status changes
+    public void setStatus(CourseStatus newStatus) {
+        this.status = newStatus;
+        if (newStatus == CourseStatus.ARCHIVED) {
+            this.deletedAt = LocalDateTime.now();
         }
     }
 
