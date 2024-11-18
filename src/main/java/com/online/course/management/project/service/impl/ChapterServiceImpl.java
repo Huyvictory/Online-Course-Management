@@ -8,7 +8,7 @@ import com.online.course.management.project.entity.Lesson;
 import com.online.course.management.project.enums.CourseStatus;
 import com.online.course.management.project.exception.business.InvalidRequestException;
 import com.online.course.management.project.mapper.ChapterMapper;
-import com.online.course.management.project.repository.chapter.IChapterRepository;
+import com.online.course.management.project.repository.IChapterRepository;
 import com.online.course.management.project.service.interfaces.IChapterService;
 import com.online.course.management.project.utils.chapter.ChapterServiceUtils;
 import com.online.course.management.project.utils.course.CourseServiceUtils;

@@ -11,8 +11,8 @@ import com.online.course.management.project.enums.CourseStatus;
 import com.online.course.management.project.exception.business.ForbiddenException;
 import com.online.course.management.project.exception.business.InvalidRequestException;
 import com.online.course.management.project.exception.business.ResourceNotFoundException;
-import com.online.course.management.project.repository.chapter.IChapterRepository;
-import com.online.course.management.project.repository.lesson.LessonOperations;
+import com.online.course.management.project.repository.IChapterRepository;
+import com.online.course.management.project.repository.ILessonRepository;
 import com.online.course.management.project.utils.course.CourseServiceUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Sort;
@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 public class ChapterServiceUtils {
 
     private final IChapterRepository chapterRepository;
-    private final LessonOperations lessonRepository;
+    private final ILessonRepository lessonRepository;
     private final CourseServiceUtils courseServiceUtils;
     private final ObjectMapper objectMapper;
     private static final int MAX_BULK_OPERATION_SIZE = 5;
@@ -36,7 +36,7 @@ public class ChapterServiceUtils {
             IChapterRepository chapterRepository,
             CourseServiceUtils courseServiceUtils,
             ObjectMapper objectMapper,
-            LessonOperations lessonRepository) {
+            ILessonRepository lessonRepository) {
         this.chapterRepository = chapterRepository;
         this.courseServiceUtils = courseServiceUtils;
         this.objectMapper = objectMapper;
