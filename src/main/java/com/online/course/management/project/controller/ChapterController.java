@@ -57,4 +57,32 @@ public class ChapterController {
         List<ChapterDTOs.ChapterResponseDto> updatedChapters = chapterService.bulkUpdateChapters(request.getChapterIds(), request.getChapters());
         return ResponseEntity.ok(updatedChapters);
     }
+
+    @DeleteMapping(ChapterConstants.DELETE_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR"})
+    public ResponseEntity<String> deleteChapter(@PathVariable @Valid long id) {
+        chapterService.deleteChapter(id);
+        return ResponseEntity.ok("Chapter deleted successfully");
+    }
+
+    @DeleteMapping(ChapterConstants.BULK_DELETE_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR"})
+    public ResponseEntity<String> bulkDeleteChapters(@RequestBody @Valid ChapterDTOs.BulkOperationChapterDTO request) {
+        chapterService.bulkDeleteChapters(request.getChapterIds());
+        return ResponseEntity.ok("Chapters deleted successfully");
+    }
+
+    @PostMapping(ChapterConstants.RESTORE_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR"})
+    public ResponseEntity<String> restoreChapter(@PathVariable @Valid long id) {
+        chapterService.restoreChapter(id);
+        return ResponseEntity.ok("Chapter restored successfully");
+    }
+
+    @PostMapping(ChapterConstants.BULK_RESTORE_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR"})
+    public ResponseEntity<String> bulkRestoreChapters(@RequestBody @Valid ChapterDTOs.BulkOperationChapterDTO request) {
+        chapterService.bulkRestoreChapters(request.getChapterIds());
+        return ResponseEntity.ok("Chapters restored successfully");
+    }
 }
