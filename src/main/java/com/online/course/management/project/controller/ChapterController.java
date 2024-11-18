@@ -2,7 +2,7 @@ package com.online.course.management.project.controller;
 
 import com.online.course.management.project.constants.ChapterConstants;
 import com.online.course.management.project.dto.ChapterDTOs;
-import com.online.course.management.project.dto.CourseDTOS;
+import com.online.course.management.project.dto.PaginationDto;
 import com.online.course.management.project.security.RequiredRole;
 import com.online.course.management.project.service.interfaces.IChapterService;
 import jakarta.validation.Valid;
@@ -84,5 +84,46 @@ public class ChapterController {
     public ResponseEntity<String> bulkRestoreChapters(@RequestBody @Valid ChapterDTOs.BulkOperationChapterDTO request) {
         chapterService.bulkRestoreChapters(request.getChapterIds());
         return ResponseEntity.ok("Chapters restored successfully");
+    }
+
+    @PostMapping(ChapterConstants.GET_DETAILS_PATH)
+    public ResponseEntity<ChapterDTOs.ChapterResponseDto> getChapterDetailsById(@PathVariable @Valid long id) {
+
+        ChapterDTOs.ChapterResponseDto response = chapterService.getChapterById(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(ChapterConstants.GET_DETAILS_WITH_LESSONS_PATH)
+    public ResponseEntity<ChapterDTOs.ChapterDetailResponseDto> getChapterDetailsWithLessonsById(@PathVariable @Valid long id) {
+        ChapterDTOs.ChapterDetailResponseDto response = chapterService.getChapterWithLessons(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(ChapterConstants.GET_CHAPTERS_BY_COURSE_PATH)
+    public ResponseEntity<List<ChapterDTOs.ChapterResponseDto>> getChaptersByCourseId(@PathVariable @Valid long courseId) {
+        List<ChapterDTOs.ChapterResponseDto> response = chapterService.getAllChaptersByCourseId(courseId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(ChapterConstants.SEARCH_CHAPTERS_PATH)
+    public ResponseEntity<PaginationDto.PaginationResponseDto<ChapterDTOs.ChapterResponseDto>> searchChapters(
+            @Valid @RequestBody ChapterDTOs.ChapterSearchDTO searchRequest) {
+
+        var chaptersPage = chapterService.searchChapters(searchRequest, searchRequest.toPageable());
+
+        var response = new PaginationDto.PaginationResponseDto<>(
+                chaptersPage.getContent(),
+                chaptersPage.getNumber() + 1,
+                chaptersPage.getSize(),
+                chaptersPage.getTotalElements());
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(ChapterConstants.CHAPTER_REORDERED_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR"})
+    public ResponseEntity<String> reorderChapters(@PathVariable @Valid long id) {
+        chapterService.reorderChapters(id);
+        return ResponseEntity.ok("Chapter reordered successfully");
     }
 }

@@ -2,22 +2,16 @@ package com.online.course.management.project.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.online.course.management.project.dto.ChapterDTOs;
-import com.online.course.management.project.dto.LessonDTOs;
 import com.online.course.management.project.entity.Chapter;
 import com.online.course.management.project.entity.Course;
 import com.online.course.management.project.entity.Lesson;
 import com.online.course.management.project.enums.CourseStatus;
 import com.online.course.management.project.exception.business.InvalidRequestException;
 import com.online.course.management.project.mapper.ChapterMapper;
-import com.online.course.management.project.mapper.LessonMapper;
 import com.online.course.management.project.repository.chapter.IChapterRepository;
-import com.online.course.management.project.repository.lesson.LessonOperations;
 import com.online.course.management.project.service.interfaces.IChapterService;
 import com.online.course.management.project.utils.chapter.ChapterServiceUtils;
 import com.online.course.management.project.utils.course.CourseServiceUtils;
-import com.online.course.management.project.utils.lesson.LessonServiceUtils;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
@@ -37,25 +31,20 @@ import java.util.stream.Collectors;
 public class ChapterServiceImpl implements IChapterService {
 
     private final IChapterRepository chapterRepository;
-    private final LessonOperations lessonRepository;
     private final ChapterMapper chapterMapper;
-    private final LessonMapper lessonMapper;
     private final ChapterServiceUtils chapterServiceUtils;
     private final CourseServiceUtils courseServiceUtils;
-    private final LessonServiceUtils lessonServiceUtils;
-
-    @PersistenceContext
-    private EntityManager entityManager;
 
     @Autowired
-    public ChapterServiceImpl(IChapterRepository chapterRepository, LessonOperations lessonRepository, ChapterMapper chapterMapper, LessonMapper lessonMapper, ChapterServiceUtils chapterServiceUtils, CourseServiceUtils courseServiceUtils, LessonServiceUtils lessonServiceUtils) {
+    public ChapterServiceImpl
+            (IChapterRepository chapterRepository,
+             ChapterMapper chapterMapper,
+             ChapterServiceUtils chapterServiceUtils,
+             CourseServiceUtils courseServiceUtils) {
         this.chapterRepository = chapterRepository;
-        this.lessonRepository = lessonRepository;
         this.chapterMapper = chapterMapper;
-        this.lessonMapper = lessonMapper;
         this.chapterServiceUtils = chapterServiceUtils;
         this.courseServiceUtils = courseServiceUtils;
-        this.lessonServiceUtils = lessonServiceUtils;
     }
 
     @Override
@@ -70,13 +59,13 @@ public class ChapterServiceImpl implements IChapterService {
         validateChapterOrder(course.getId(), request.getOrder());
 
         // Create and save chapter first
-        Chapter chapter = createChapterWithLessons(request, course);
+        Chapter chapter = chapterServiceUtils.createChapterWithLessons(request, course);
         chapter.setCourse(course);
         chapter.setStatus(CourseStatus.DRAFT);
 
         // Handle lessons if provided
         if (request.getLessons() != null && !request.getLessons().isEmpty()) {
-            validateBulkLessonsOrders(chapter.getId(), chapter.getLessons());
+            chapterServiceUtils.validateBulkLessonsOrders(chapter.getId(), chapter.getLessons());
         }
 
         Chapter savedChapter = chapterRepository.save(chapter);
@@ -90,18 +79,18 @@ public class ChapterServiceImpl implements IChapterService {
         log.info("Bulk creating chapters for course ID: {}", request.getChapters().get(0).getCourseId());
 
         // Validate request
-        validateBulkCreateRequest(request);
+        chapterServiceUtils.validateBulkCreateRequest(request);
 
         // Get and validate course
         Course course = courseServiceUtils.getCourseWithValidation(request.getChapters().get(0).getCourseId());
 
         // Validate all chapter orders
-        validateBulkChapterOrders(course.getId(), request.getChapters());
+        chapterServiceUtils.validateBulkChapterOrders(course.getId(), request.getChapters());
 
         // Create and save chapters with their lessons
         List<Chapter> chapters = new ArrayList<>();
         for (ChapterDTOs.CreateChapterDTO chapterDto : request.getChapters()) {
-            Chapter chapter = createChapterWithLessons(chapterDto, course);
+            Chapter chapter = chapterServiceUtils.createChapterWithLessons(chapterDto, course);
             chapters.add(chapter);
         }
 
@@ -114,105 +103,6 @@ public class ChapterServiceImpl implements IChapterService {
         return savedChapters.stream().map(chapterMapper::toDetailDto).collect(Collectors.toList());
     }
 
-    private void validateBulkCreateRequest(ChapterDTOs.BulkCreateChapterDTO request) {
-        if (request.getChapters() == null || request.getChapters().isEmpty()) {
-            throw new InvalidRequestException("No chapters provided for creation");
-        }
-
-        if (request.getChapters().size() > 5) {
-            throw new InvalidRequestException("Maximum 5 chapters can be created at once");
-        }
-
-        // Validate chapter orders uniqueness
-        Set<Integer> chapterOrders = new HashSet<>();
-        for (ChapterDTOs.CreateChapterDTO chapter : request.getChapters()) {
-            if (!chapterOrders.add(chapter.getOrder())) {
-                throw new InvalidRequestException(String.format("Duplicate chapter order found: %d", chapter.getOrder()));
-            }
-
-            // Validate lessons if present
-            if (chapter.getLessons() != null && !chapter.getLessons().isEmpty()) {
-                validateLessons(chapter.getLessons());
-            }
-        }
-    }
-
-    public void validateBulkChapterOrders(Long courseId, List<ChapterDTOs.CreateChapterDTO> chapters) {
-        List<String> conflictingOrders = new ArrayList<>();
-
-        for (ChapterDTOs.CreateChapterDTO chapter : chapters) {
-            var takenOrder = chapterServiceUtils.validateChapterOrder(courseId, chapter.getOrder());
-            if (takenOrder != null) {
-                conflictingOrders.add(takenOrder);
-            }
-        }
-
-        if (!conflictingOrders.isEmpty()) {
-            throw new InvalidRequestException("Order conflicts found: " + String.join(", ", conflictingOrders));
-        }
-    }
-
-    public void validateBulkLessonsOrders(Long chapterId, List<Lesson> lessons) {
-        // Validate lesson orders
-        List<String> takenLessonOrders = new ArrayList<>();
-        for (Lesson lesson : lessons) {
-            if (lessonRepository.isOrderNumberLessonTaken(chapterId, lesson.getOrder())) {
-                takenLessonOrders.add(String.format("Order number %d is already taken in this chapter", lesson.getOrder()));
-            }
-        }
-
-        if (!takenLessonOrders.isEmpty()) {
-            throw new InvalidRequestException(String.format("One or more lessons have duplicate order numbers: %s", String.join(", ", takenLessonOrders)));
-        }
-    }
-
-    public Chapter createChapterWithLessons(ChapterDTOs.CreateChapterDTO dto, Course course) {
-        Chapter chapter = new Chapter();
-        chapter.setCourse(course);
-        chapter.setTitle(dto.getTitle());
-        chapter.setDescription(dto.getDescription());
-        chapter.setOrder(dto.getOrder());
-        chapter.setStatus(CourseStatus.DRAFT);
-
-        if (dto.getLessons() != null && !dto.getLessons().isEmpty()) {
-            List<Lesson> lessons = dto.getLessons().stream().map(lessonDto -> {
-                Lesson lesson = new Lesson();
-                lesson.setChapter(chapter);
-                lesson.setTitle(lessonDto.getTitle());
-                lesson.setContent(lessonDto.getContent());
-                lesson.setOrder(lessonDto.getOrder()); // Maintain original order
-                lesson.setType(lessonDto.getType());
-                lesson.setStatus(CourseStatus.DRAFT);
-                return lesson;
-            }).collect(Collectors.toList());
-
-            chapter.setLessons(lessons);
-        }
-
-        return chapter;
-    }
-
-    private void validateLessons(List<LessonDTOs.CreateLessonDTO> lessons) {
-        // Validate orders
-        Set<Integer> seenOrders = new HashSet<>();
-        List<Integer> duplicateOrders = new ArrayList<>();
-
-        for (LessonDTOs.CreateLessonDTO lesson : lessons) {
-            // Validate order is positive
-            if (lesson.getOrder() <= 0) {
-                throw new InvalidRequestException(String.format("Invalid lesson order: %d. Order must be greater than 0", lesson.getOrder()));
-            }
-
-            // Check for duplicates
-            if (!seenOrders.add(lesson.getOrder())) {
-                duplicateOrders.add(lesson.getOrder());
-            }
-        }
-
-        if (!duplicateOrders.isEmpty()) {
-            throw new InvalidRequestException("Duplicate lesson orders found: " + duplicateOrders.stream().map(String::valueOf).collect(Collectors.joining(", ")));
-        }
-    }
 
     @Override
     @Transactional
@@ -424,6 +314,8 @@ public class ChapterServiceImpl implements IChapterService {
     public List<ChapterDTOs.ChapterResponseDto> getAllChaptersByCourseId(Long courseId) {
         log.info("Fetching all chapters for course ID: {}", courseId);
 
+        courseServiceUtils.GetCourseWithoutValidation(courseId);
+
         List<Chapter> chapters = chapterRepository.findAllChaptersByCourseId(courseId);
         return chapters.stream().map(chapterMapper::toDto).collect(Collectors.toList());
     }
@@ -434,10 +326,13 @@ public class ChapterServiceImpl implements IChapterService {
         log.info("Searching chapters with criteria: {}", request);
 
         // Validate and create sort if provided
-        if (request.getSort() != null && !request.getSort().isEmpty()) {
+
+        if (request.getSort() != null) {
             chapterServiceUtils.validateSortFields(request.getSort());
-            pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), chapterServiceUtils.createChapterSort(request.getSort()));
         }
+        pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), chapterServiceUtils.createChapterSort(request.getSort()));
+
+        log.info(pageable.toString());
 
         Page<Chapter> chaptersPage = chapterRepository.searchChapters(request.getTitle(), request.getStatus() != null ? request.getStatus().name() : null, request.getCourseId(), request.getFromDate(), request.getToDate(), pageable);
 
@@ -456,23 +351,6 @@ public class ChapterServiceImpl implements IChapterService {
         chapterRepository.reorderChapters(courseId);
 
         log.info("Chapters reordered successfully");
-    }
-
-    @Override
-    public boolean validateChapterExists(Long id) {
-        return chapterRepository.existsById(id);
-    }
-
-    @Override
-    public boolean validateChaptersExist(List<Long> ids) {
-        return chapterRepository.validateChaptersExist(ids, ids.size());
-    }
-
-    @Override
-    public long getChapterCountByCourse(Long courseId) {
-        // Validate course exists
-        courseServiceUtils.GetCourseWithoutValidation(courseId);
-        return chapterRepository.findAllChaptersByCourseId(courseId).size();
     }
 
     private void validateChapterOrder(Long courseId, Integer order) {

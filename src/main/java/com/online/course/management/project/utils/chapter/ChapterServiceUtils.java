@@ -2,6 +2,8 @@ package com.online.course.management.project.utils.chapter;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.online.course.management.project.dto.ChapterDTOs;
+import com.online.course.management.project.dto.LessonDTOs;
 import com.online.course.management.project.entity.Chapter;
 import com.online.course.management.project.entity.Course;
 import com.online.course.management.project.entity.Lesson;
@@ -10,12 +12,13 @@ import com.online.course.management.project.exception.business.ForbiddenExceptio
 import com.online.course.management.project.exception.business.InvalidRequestException;
 import com.online.course.management.project.exception.business.ResourceNotFoundException;
 import com.online.course.management.project.repository.chapter.IChapterRepository;
+import com.online.course.management.project.repository.lesson.LessonOperations;
 import com.online.course.management.project.utils.course.CourseServiceUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -24,6 +27,7 @@ import java.util.stream.Collectors;
 public class ChapterServiceUtils {
 
     private final IChapterRepository chapterRepository;
+    private final LessonOperations lessonRepository;
     private final CourseServiceUtils courseServiceUtils;
     private final ObjectMapper objectMapper;
     private static final int MAX_BULK_OPERATION_SIZE = 5;
@@ -31,10 +35,12 @@ public class ChapterServiceUtils {
     public ChapterServiceUtils(
             IChapterRepository chapterRepository,
             CourseServiceUtils courseServiceUtils,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            LessonOperations lessonRepository) {
         this.chapterRepository = chapterRepository;
         this.courseServiceUtils = courseServiceUtils;
         this.objectMapper = objectMapper;
+        this.lessonRepository = lessonRepository;
     }
 
     /**
@@ -144,26 +150,12 @@ public class ChapterServiceUtils {
     }
 
     /**
-     * Handles archival status changes for a chapter
-     */
-    public void handleArchiveStatus(Chapter chapter) {
-        chapter.setDeletedAt(LocalDateTime.now());
-
-        if (chapter.getLessons() != null) {
-            for (Lesson lesson : chapter.getLessons()) {
-                lesson.setStatus(CourseStatus.ARCHIVED);
-                lesson.setDeletedAt(LocalDateTime.now());
-            }
-        }
-    }
-
-    /**
      * Validates sort parameters for chapter queries
      */
     public void validateSortFields(Map<String, String> sort) {
         Set<String> validFields = Set.of(
                 "title",
-                "order",
+                "order_number",
                 "status",
                 "created_at",
                 "updated_at"
@@ -196,51 +188,117 @@ public class ChapterServiceUtils {
      */
     public Sort createChapterSort(Map<String, String> sortParams) {
         if (sortParams == null || sortParams.isEmpty()) {
-            return Sort.by(Sort.Direction.ASC, "order");
+            return Sort.by(Sort.Direction.ASC, "order_number");
         }
 
         List<Sort.Order> orders = sortParams.entrySet().stream()
                 .map(entry -> {
                     Sort.Direction direction = entry.getValue().equalsIgnoreCase("asc") ?
                             Sort.Direction.ASC : Sort.Direction.DESC;
-                    return new Sort.Order(direction, entry.getKey());
+                    return JpaSort.unsafe(direction, entry.getKey()).getOrderFor(entry.getKey());
                 })
                 .collect(Collectors.toList());
 
         return Sort.by(orders);
     }
 
-    /**
-     * Validates chapter sequence within a course
-     */
-    public void validateChapterSequence(Long courseId, List<Long> chapterIds) {
-        // Ensure all chapters exist and belong to the course
-        List<Chapter> chapters = chapterRepository.findAllById(chapterIds);
-
-        if (chapters.size() != chapterIds.size()) {
-            throw new ResourceNotFoundException("One or more chapters not found");
+    public void validateBulkCreateRequest(ChapterDTOs.BulkCreateChapterDTO request) {
+        if (request.getChapters() == null || request.getChapters().isEmpty()) {
+            throw new InvalidRequestException("No chapters provided for creation");
         }
 
-        for (Chapter chapter : chapters) {
-            if (!chapter.getCourse().getId().equals(courseId)) {
-                throw new InvalidRequestException(
-                        String.format("Chapter %d does not belong to course %d",
-                                chapter.getId(), courseId)
-                );
+        if (request.getChapters().size() > 5) {
+            throw new InvalidRequestException("Maximum 5 chapters can be created at once");
+        }
+
+        // Validate chapter orders uniqueness
+        Set<Integer> chapterOrders = new HashSet<>();
+        for (ChapterDTOs.CreateChapterDTO chapter : request.getChapters()) {
+            if (!chapterOrders.add(chapter.getOrder())) {
+                throw new InvalidRequestException(String.format("Duplicate chapter order found: %d", chapter.getOrder()));
+            }
+
+            // Validate lessons if present
+            if (chapter.getLessons() != null && !chapter.getLessons().isEmpty()) {
+                validateLessons(chapter.getLessons());
+            }
+        }
+    }
+
+    public void validateBulkChapterOrders(Long courseId, List<ChapterDTOs.CreateChapterDTO> chapters) {
+        List<String> conflictingOrders = new ArrayList<>();
+
+        for (ChapterDTOs.CreateChapterDTO chapter : chapters) {
+            var takenOrder = validateChapterOrder(courseId, chapter.getOrder());
+            if (takenOrder != null) {
+                conflictingOrders.add(takenOrder);
             }
         }
 
-        // Validate no gaps in sequence
-        Set<Integer> orders = chapters.stream()
-                .map(Chapter::getOrder)
-                .collect(Collectors.toSet());
+        if (!conflictingOrders.isEmpty()) {
+            throw new InvalidRequestException("Order conflicts found: " + String.join(", ", conflictingOrders));
+        }
+    }
 
-        for (int i = 1; i <= chapters.size(); i++) {
-            if (!orders.contains(i)) {
-                throw new InvalidRequestException(
-                        String.format("Gap detected in chapter sequence at position %d", i)
-                );
+    public void validateBulkLessonsOrders(Long chapterId, List<Lesson> lessons) {
+        // Validate lesson orders
+        List<String> takenLessonOrders = new ArrayList<>();
+        for (Lesson lesson : lessons) {
+            if (lessonRepository.isOrderNumberLessonTaken(chapterId, lesson.getOrder())) {
+                takenLessonOrders.add(String.format("Order number %d is already taken in this chapter", lesson.getOrder()));
             }
+        }
+
+        if (!takenLessonOrders.isEmpty()) {
+            throw new InvalidRequestException(String.format("One or more lessons have duplicate order numbers: %s", String.join(", ", takenLessonOrders)));
+        }
+    }
+
+    public Chapter createChapterWithLessons(ChapterDTOs.CreateChapterDTO dto, Course course) {
+        Chapter chapter = new Chapter();
+        chapter.setCourse(course);
+        chapter.setTitle(dto.getTitle());
+        chapter.setDescription(dto.getDescription());
+        chapter.setOrder(dto.getOrder());
+        chapter.setStatus(CourseStatus.DRAFT);
+
+        if (dto.getLessons() != null && !dto.getLessons().isEmpty()) {
+            List<Lesson> lessons = dto.getLessons().stream().map(lessonDto -> {
+                Lesson lesson = new Lesson();
+                lesson.setChapter(chapter);
+                lesson.setTitle(lessonDto.getTitle());
+                lesson.setContent(lessonDto.getContent());
+                lesson.setOrder(lessonDto.getOrder()); // Maintain original order
+                lesson.setType(lessonDto.getType());
+                lesson.setStatus(CourseStatus.DRAFT);
+                return lesson;
+            }).collect(Collectors.toList());
+
+            chapter.setLessons(lessons);
+        }
+
+        return chapter;
+    }
+
+    public void validateLessons(List<LessonDTOs.CreateLessonDTO> lessons) {
+        // Validate orders
+        Set<Integer> seenOrders = new HashSet<>();
+        List<Integer> duplicateOrders = new ArrayList<>();
+
+        for (LessonDTOs.CreateLessonDTO lesson : lessons) {
+            // Validate order is positive
+            if (lesson.getOrder() <= 0) {
+                throw new InvalidRequestException(String.format("Invalid lesson order: %d. Order must be greater than 0", lesson.getOrder()));
+            }
+
+            // Check for duplicates
+            if (!seenOrders.add(lesson.getOrder())) {
+                duplicateOrders.add(lesson.getOrder());
+            }
+        }
+
+        if (!duplicateOrders.isEmpty()) {
+            throw new InvalidRequestException("Duplicate lesson orders found: " + duplicateOrders.stream().map(String::valueOf).collect(Collectors.joining(", ")));
         }
     }
 }
