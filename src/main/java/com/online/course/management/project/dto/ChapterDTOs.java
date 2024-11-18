@@ -133,7 +133,7 @@ public class ChapterDTOs {
     @AllArgsConstructor
     public static class BulkUpdateChapterDTO {
 
-        @NotNull(message  = "Chapter ids are required")
+        @NotNull(message = "Chapter ids are required")
         private List<Long> chapterIds;
 
         @NotEmpty(message = "At least one chapter is required")
@@ -149,6 +149,14 @@ public class ChapterDTOs {
         @NotNull(message = "Order is required")
         @Min(value = 1, message = "Order must be greater than 0")
         private Integer order;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class BulkOperationChapterDTO {
+        @NotNull(message = "Chapter IDs are required")
+        private List<Long> chapterIds;
     }
 
     @Data

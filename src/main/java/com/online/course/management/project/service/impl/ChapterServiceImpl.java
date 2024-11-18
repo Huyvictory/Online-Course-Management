@@ -302,6 +302,10 @@ public class ChapterServiceImpl implements IChapterService {
             (List<Long> ids, List<ChapterDTOs.UpdateChapterDTO> chapters) {
         log.info("Bulk updating {} chapters", ids.size());
 
+        if (chapters.size() != ids.size()) {
+            throw new InvalidRequestException("Number of chapter IDs and update requests must match");
+        }
+
         chapterServiceUtils.validateBulkOperation(ids);
 
         List<Chapter> updatedChapters = new ArrayList<>();
@@ -340,9 +344,8 @@ public class ChapterServiceImpl implements IChapterService {
             throw new InvalidRequestException("Chapter is already deleted");
         }
 
-        chapter.setDeletedAt(LocalDateTime.now());
-        chapter.setStatus(CourseStatus.ARCHIVED);
-        chapterRepository.save(chapter);
+        chapterRepository.batchSoftDeleteChapters(List.of(id));
+        chapterRepository.batchSoftDeleteLessonsChapters(List.of(id));
 
         log.info("Chapter soft deleted successfully");
     }
@@ -353,7 +356,15 @@ public class ChapterServiceImpl implements IChapterService {
         log.info("Bulk deleting {} chapters", ids.size());
 
         chapterServiceUtils.validateBulkOperation(ids);
+
+        List<Chapter> chapters = chapterRepository.findAllById(ids);
+
+        for (Chapter chapter : chapters) {
+            chapterServiceUtils.validateChapterAccess(chapter);
+        }
+
         chapterRepository.batchSoftDeleteChapters(ids);
+        chapterRepository.batchSoftDeleteLessonsChapters(ids);
 
         log.info("Successfully deleted {} chapters", ids.size());
     }
@@ -370,9 +381,8 @@ public class ChapterServiceImpl implements IChapterService {
             throw new InvalidRequestException("Chapter is not deleted");
         }
 
-        chapter.setDeletedAt(null);
-        chapter.setStatus(CourseStatus.DRAFT);
-        chapterRepository.save(chapter);
+        chapterRepository.batchRestoreChapters(List.of(id));
+        chapterRepository.batchRestoreLessonsChapters(List.of(id));
 
         log.info("Chapter restored successfully");
     }
@@ -383,7 +393,15 @@ public class ChapterServiceImpl implements IChapterService {
         log.info("Bulk restoring {} chapters", ids.size());
 
         chapterServiceUtils.validateBulkOperation(ids);
+
+        List<Chapter> chapters = chapterRepository.findAllById(ids);
+
+        for (Chapter chapter : chapters) {
+            chapterServiceUtils.validateChapterAccess(chapter);
+        }
+
         chapterRepository.batchRestoreChapters(ids);
+        chapterRepository.batchRestoreLessonsChapters(ids);
 
         log.info("Successfully restored {} chapters", ids.size());
     }
