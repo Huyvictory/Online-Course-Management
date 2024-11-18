@@ -39,8 +39,6 @@ public interface ChapterMapper {
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "id", ignore = true)
-    @Mapping(target = "course", ignore = true)
-    @Mapping(target = "lessons", expression = "java(updateLessonsList(chapter, dto.getLessons()))")
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "deletedAt", ignore = true)
@@ -69,27 +67,6 @@ public interface ChapterMapper {
         return 0;
     }
 
-    @Named("updateLessonsList")
-    default List<Lesson> updateLessonsList(Chapter chapter, List<LessonDTOs.UpdateLessonDTO> lessonDtos) {
-        if (lessonDtos == null) {
-            return chapter.getLessons();
-        }
-
-        // Update existing lessons
-        // Note: This is a simplified version. In real implementation,
-        // you would need to handle lesson ordering and updates more carefully
-        for (int i = 0; i < Math.min(chapter.getLessons().size(), lessonDtos.size()); i++) {
-            chapter.getLessons().get(i).setTitle(lessonDtos.get(i).getTitle());
-            chapter.getLessons().get(i).setContent(lessonDtos.get(i).getContent());
-            chapter.getLessons().get(i).setOrder(lessonDtos.get(i).getOrder());
-            chapter.getLessons().get(i).setType(lessonDtos.get(i).getType());
-            if (lessonDtos.get(i).getStatus() != null) {
-                chapter.getLessons().get(i).setStatus(lessonDtos.get(i).getStatus());
-            }
-        }
-
-        return chapter.getLessons();
-    }
 
     @Named("mapCreateLessonDTOs")
     default List<Lesson> mapCreateLessonDTOs(List<LessonDTOs.CreateLessonDTO> lessonDtos, Chapter chapter) {

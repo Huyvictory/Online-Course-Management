@@ -10,9 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -44,5 +42,19 @@ public class ChapterController {
         List<ChapterDTOs.ChapterDetailResponseDto> createdChapter = chapterService.bulkCreateChapters(request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(createdChapter);
+    }
+
+    @PutMapping(ChapterConstants.UPDATE_DETAILS_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR"})
+    public ResponseEntity<ChapterDTOs.ChapterDetailResponseDto> updateChapter(@PathVariable @Valid long id, @RequestBody @Valid ChapterDTOs.UpdateChapterDTO request) {
+        ChapterDTOs.ChapterDetailResponseDto updatedChapter = chapterService.updateChapter(id, request);
+        return ResponseEntity.ok(updatedChapter);
+    }
+
+    @PutMapping(ChapterConstants.BULK_UPDATE_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR"})
+    public ResponseEntity<List<ChapterDTOs.ChapterResponseDto>> bulkUpdateChapters(@RequestBody @Valid ChapterDTOs.BulkUpdateChapterDTO request) {
+        List<ChapterDTOs.ChapterResponseDto> updatedChapters = chapterService.bulkUpdateChapters(request.getChapterIds(), request.getChapters());
+        return ResponseEntity.ok(updatedChapters);
     }
 }

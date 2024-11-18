@@ -10,7 +10,7 @@ import com.online.course.management.project.enums.CourseStatus;
 import com.online.course.management.project.exception.business.InvalidRequestException;
 import com.online.course.management.project.mapper.ChapterMapper;
 import com.online.course.management.project.mapper.LessonMapper;
-import com.online.course.management.project.repository.IChapterRepository;
+import com.online.course.management.project.repository.chapter.IChapterRepository;
 import com.online.course.management.project.repository.lesson.LessonOperations;
 import com.online.course.management.project.service.interfaces.IChapterService;
 import com.online.course.management.project.utils.chapter.ChapterServiceUtils;
@@ -20,7 +20,6 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -28,13 +27,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -212,15 +207,6 @@ public class ChapterServiceImpl implements IChapterService {
             if (!seenOrders.add(lesson.getOrder())) {
                 duplicateOrders.add(lesson.getOrder());
             }
-
-            // Validate required fields
-            if (StringUtils.isEmpty(lesson.getTitle())) {
-                throw new InvalidRequestException("Lesson title is required");
-            }
-
-            if (lesson.getType() == null) {
-                throw new InvalidRequestException("Lesson type is required");
-            }
         }
 
         if (!duplicateOrders.isEmpty()) {
@@ -230,105 +216,115 @@ public class ChapterServiceImpl implements IChapterService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "chapters", key = "#id")
-    public ChapterDTOs.ChapterResponseDto updateChapter(Long id, ChapterDTOs.UpdateChapterDTO request) {
+    public ChapterDTOs.ChapterDetailResponseDto updateChapter(Long id, ChapterDTOs.UpdateChapterDTO request) {
         log.info("Updating chapter with ID: {}", id);
 
+        // Get chapter details and validate access
         Chapter chapter = chapterServiceUtils.getChapterOrThrow(id);
         chapterServiceUtils.validateChapterAccess(chapter);
 
-        // Validate order number if it's being updated
-        if (request.getOrder() != null) {
-            var takenChapterOrderString = chapterServiceUtils.validateChapterOrder(chapter.getCourse().getId(), request.getOrder());
+        updateBasicFields(chapter, request);
 
-            if (takenChapterOrderString != null) {
-                throw new InvalidRequestException(takenChapterOrderString);
-            }
-        }
-
-        // Validate status if it's being updated
         if (request.getStatus() != null) {
-            try {
-                chapterServiceUtils.validateChapterStatus(chapter.getStatus(), request.getStatus());
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
-            }
+            handleStatusChange(chapter, request.getStatus());
+        }
 
-            if (request.getStatus() == CourseStatus.ARCHIVED) {
-                chapterServiceUtils.handleArchiveStatus(chapter, request.getStatus());
+        Chapter savedChapter = chapterRepository.save(chapter);
+        return chapterMapper.toDetailDto(savedChapter);
+    }
+
+    private void updateBasicFields(Chapter chapter, ChapterDTOs.UpdateChapterDTO request) {
+        if (request.getTitle() != null) {
+            chapter.setTitle(request.getTitle());
+        }
+        if (request.getDescription() != null) {
+            chapter.setDescription(request.getDescription());
+        }
+        if (request.getOrder() != null) {
+            validateChapterOrder(chapter.getCourse().getId(), request.getOrder());
+            chapter.setOrder(request.getOrder());
+        }
+    }
+
+    @Transactional
+    protected void handleStatusChange(Chapter chapter, CourseStatus newStatus) {
+        try {
+            chapterServiceUtils.validateChapterStatus(chapter.getStatus(), newStatus);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        // Handle archival case
+        if (newStatus == CourseStatus.ARCHIVED && chapter.getStatus() != CourseStatus.ARCHIVED) {
+            // Set the chapter status and dates
+            chapter.setStatus(newStatus);
+            chapter.setDeletedAt(now);
+            chapter.setUpdatedAt(now);
+
+            // Update lessons status
+            if (chapter.getLessons() != null) {
+                for (Lesson lesson : chapter.getLessons()) {
+                    lesson.setStatus(CourseStatus.ARCHIVED);
+                    lesson.setDeletedAt(now);
+                    lesson.setUpdatedAt(now);
+                }
             }
         }
 
-        chapterMapper.updateChapterFromDto(request, chapter);
-        Chapter updatedChapter = chapterRepository.save(chapter);
+        // Handle restoration case
+        else if (newStatus != CourseStatus.ARCHIVED && chapter.getStatus() == CourseStatus.ARCHIVED) {
+            // Set the chapter status and dates
+            chapter.setStatus(newStatus);
+            chapter.setDeletedAt(null);
+            chapter.setUpdatedAt(now);
 
-        log.info("Chapter updated successfully");
-        return chapterMapper.toDto(updatedChapter);
+            // Update lessons status
+            if (chapter.getLessons() != null) {
+                for (Lesson lesson : chapter.getLessons()) {
+                    lesson.setStatus(CourseStatus.DRAFT);
+                    lesson.setDeletedAt(null);
+                    lesson.setUpdatedAt(now);
+                }
+            }
+        }
+        // Handle other status changes
+        else {
+            chapter.setStatus(newStatus);
+            chapter.setUpdatedAt(now);
+        }
     }
 
     @Override
     @Transactional
-    public List<ChapterDTOs.ChapterResponseDto> bulkUpdateChapters(List<Long> ids, ChapterDTOs.BulkUpdateChapterDTO request) {
+    public List<ChapterDTOs.ChapterResponseDto> bulkUpdateChapters
+            (List<Long> ids, List<ChapterDTOs.UpdateChapterDTO> chapters) {
         log.info("Bulk updating {} chapters", ids.size());
 
         chapterServiceUtils.validateBulkOperation(ids);
 
-        if (request.getChapters().size() != ids.size()) {
-            throw new InvalidRequestException("Number of chapter IDs and update requests must match");
-        }
-
         List<Chapter> updatedChapters = new ArrayList<>();
-        List<String> takenChapterOrders = new ArrayList<>();
         for (int i = 0; i < ids.size(); i++) {
             Chapter chapter = chapterServiceUtils.getChapterOrThrow(ids.get(i));
             chapterServiceUtils.validateChapterAccess(chapter);
 
-            ChapterDTOs.UpdateChapterDTO updateDto = request.getChapters().get(i);
+            ChapterDTOs.UpdateChapterDTO updateDto = chapters.get(i);
 
-            // Validate order if provided
-            if (updateDto.getOrder() != null) {
-                var tookChapterOrderString = chapterServiceUtils.validateChapterOrder(chapter.getCourse().getId(), updateDto.getOrder());
-
-                if (tookChapterOrderString != null) {
-                    takenChapterOrders.add(tookChapterOrderString);
-                    continue;
-                }
-            }
 
             // Validate status if provided
             if (updateDto.getStatus() != null) {
-                try {
-                    chapterServiceUtils.validateChapterStatus(chapter.getStatus(), updateDto.getStatus());
-                } catch (JsonProcessingException e) {
-                    throw new RuntimeException(e);
-                }
-
-                if (updateDto.getStatus() == CourseStatus.ARCHIVED) {
-                    chapterServiceUtils.handleArchiveStatus(chapter, updateDto.getStatus());
-                }
+                handleStatusChange(chapter, updateDto.getStatus());
             }
 
-            chapterMapper.updateChapterFromDto(updateDto, chapter);
+            updateBasicFields(chapter, updateDto);
             updatedChapters.add(chapter);
         }
 
-        if (!takenChapterOrders.isEmpty()) {
-            throw new InvalidRequestException(String.format("One or more chapters have the same order number: %s", String.join(", ", takenChapterOrders)));
-        }
-
         // Build CASE statements
-        String titleCases = updatedChapters.stream().map(ch -> String.format("WHEN %d THEN '%s'", ch.getId(), ch.getTitle())).collect(Collectors.joining(" "));
+        List<Chapter> savedChapters = chapterRepository.saveAll(updatedChapters);
 
-        String descriptionCases = updatedChapters.stream().map(ch -> String.format("WHEN %d THEN '%s'", ch.getId(), ch.getDescription())).collect(Collectors.joining(" "));
-
-        String statusCases = updatedChapters.stream().map(ch -> String.format("WHEN %d THEN '%s'", ch.getId(), ch.getStatus().name())).collect(Collectors.joining(" "));
-
-        chapterRepository.batchUpdateChapters(ids, titleCases, descriptionCases, statusCases);
-
-        log.info("Successfully updated {} chapters", request.getChapters().size());
-
-        List<Chapter> savedChapters = chapterRepository.findRecentUpdatedChapters(ids);
-
+        log.info("Successfully updated {} chapters", chapters.size());
         return savedChapters.stream().map(chapterMapper::toDto).collect(Collectors.toList());
     }
 
@@ -415,7 +411,8 @@ public class ChapterServiceImpl implements IChapterService {
     }
 
     @Override
-    public Page<ChapterDTOs.ChapterResponseDto> searchChapters(ChapterDTOs.ChapterSearchDTO request, Pageable pageable) {
+    public Page<ChapterDTOs.ChapterResponseDto> searchChapters(ChapterDTOs.ChapterSearchDTO request, Pageable
+            pageable) {
         log.info("Searching chapters with criteria: {}", request);
 
         // Validate and create sort if provided

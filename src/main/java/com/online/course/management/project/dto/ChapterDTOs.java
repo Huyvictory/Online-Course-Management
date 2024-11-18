@@ -68,9 +68,6 @@ public class ChapterDTOs {
         private Integer order;
 
         private CourseStatus status;
-
-        @Valid
-        private List<LessonDTOs.UpdateLessonDTO> lessons;
     }
 
     @Data
@@ -135,6 +132,10 @@ public class ChapterDTOs {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class BulkUpdateChapterDTO {
+
+        @NotNull(message  = "Chapter ids are required")
+        private List<Long> chapterIds;
+
         @NotEmpty(message = "At least one chapter is required")
         private List<UpdateChapterDTO> chapters;
     }
