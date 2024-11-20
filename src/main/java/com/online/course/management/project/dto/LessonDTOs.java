@@ -56,9 +56,6 @@ public class LessonDTOs {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class CreateLessonDTO {
-        @NotNull(message = "Chapter ID is required")
-        private Long chapterId;
-
         @NotBlank(message = "Lesson title is required")
         @Size(max = 255, message = "Title must not exceed 255 characters")
         private String title;
@@ -66,6 +63,7 @@ public class LessonDTOs {
         @NotBlank(message = "Content is required")
         private String content;
 
+        @NotNull(message = "Lesson order is required")
         @Min(value = 1, message = "Order must be greater than 0")
         private Integer order;
 
@@ -73,6 +71,15 @@ public class LessonDTOs {
         private LessonType type;
 
         private CourseStatus status = CourseStatus.DRAFT;
+    }
+
+    @EqualsAndHashCode(callSuper = true)
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateLessonDTOWithChapterId extends CreateLessonDTO {
+        @NotNull(message = "Chapter ID is required")
+        private Long chapterId;
     }
 
     @Data

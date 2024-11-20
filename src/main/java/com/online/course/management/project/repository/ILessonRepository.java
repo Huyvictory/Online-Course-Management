@@ -18,6 +18,9 @@ import java.util.Optional;
 @Repository
 public interface ILessonRepository extends JpaRepository<Lesson, Long>, JpaSpecificationExecutor<Lesson> {
 
+    @Override
+    <S extends Lesson> S save(S lesson);
+
     // Find Lesson details by id
     @Query(value = """
             select l.*,
@@ -84,40 +87,6 @@ public interface ILessonRepository extends JpaRepository<Lesson, Long>, JpaSpeci
             nativeQuery = true)
     List<Lesson> findAllLessonsByChapterId(@Param("chapterId") Long chapterId);
 
-    // Batch create lessons
-    @Modifying
-    @Query(value = """
-            INSERT INTO lessons 
-                (chapter_id, title, content, order_number, type, status, created_at, updated_at)
-            VALUES 
-                (:#{#lesson.chapter.id}, :#{#lesson.title}, :#{#lesson.content}, 
-                 :#{#lesson.order}, :#{#lesson.type}, :#{#lesson.status}, 
-                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            """, nativeQuery = true)
-    void batchCreateLessons(@Param("lesson") List<Lesson> lessons);
-
-    // Batch update lessons
-    @Modifying
-    @Query(value = """
-            UPDATE lessons
-            SET title = :title,
-                content = :content,
-                type = :type,
-                status = :status,
-                chapter_id = :chapterId,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = :id
-            AND deleted_at IS NULL
-            """, nativeQuery = true)
-    void batchUpdateLesson(
-            @Param("id") Long id,
-            @Param("title") String title,
-            @Param("content") String content,
-            @Param("type") String type,
-            @Param("status") String status,
-            @Param("chapterId") Long chapterId
-    );
-
     // Remove soft deleted lessons
     @Modifying
     @Query(value = """
@@ -155,14 +124,13 @@ public interface ILessonRepository extends JpaRepository<Lesson, Long>, JpaSpeci
     void batchRestoreLessons(@Param("lessonIds") List<Long> lessonsIds);
 
     @Query("""
-            SELECT COUNT(l) > 0 
+            SELECT exists (
             FROM Lesson l 
             WHERE l.chapter.id = :chapterId 
             AND l.order = :order 
-            AND l.id != :lessonId 
-            AND l.deletedAt IS NULL
+            AND l.deletedAt IS NULL )
             """)
-    boolean isOrderNumberLessonTaken(@Param("chapterId") Long chapterId, @Param("order") Integer order, @Param("lessonId") Long lessonId);
+    boolean isOrderNumberLessonTaken(@Param("chapterId") Long chapterId, @Param("order") Integer order);
 
     // Validate lessons belong to chapter
     @Query("""
