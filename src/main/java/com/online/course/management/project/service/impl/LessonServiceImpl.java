@@ -1,8 +1,10 @@
 package com.online.course.management.project.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.online.course.management.project.dto.LessonDTOs;
 import com.online.course.management.project.entity.Chapter;
 import com.online.course.management.project.entity.Lesson;
+import com.online.course.management.project.enums.CourseStatus;
 import com.online.course.management.project.exception.business.InvalidRequestException;
 import com.online.course.management.project.mapper.LessonMapper;
 import com.online.course.management.project.repository.ILessonRepository;
@@ -14,7 +16,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @Slf4j
@@ -94,6 +99,117 @@ public class LessonServiceImpl implements ILessonService {
         chapter.setLessons(lessons);
 
         List<Lesson> savedLessons = lessonRepository.saveAll(lessons);
+
+        return savedLessons.stream().map(lessonMapper::toDto).toList();
+    }
+
+    @Override
+    @Transactional
+    public LessonDTOs.LessonResponseDto updateLesson(Long id, LessonDTOs.UpdateLessonDTO request) {
+
+        Lesson lessonToUpdate = lessonServiceUtils.GetLessonOrThrow(id);
+
+        // Validate accessibility
+        chapterServiceUtils.validateChapterAccess(lessonToUpdate.getChapter());
+
+        // Validate order
+        if (request.getOrder() != null) {
+            var takenLessonOrder = lessonServiceUtils.hasLessonOrderTakenSingle(lessonToUpdate.getChapter().getId(), request.getOrder());
+
+            if (takenLessonOrder != null) {
+                throw new InvalidRequestException(
+                        takenLessonOrder
+                );
+            }
+        }
+
+        // Validate status
+        if (request.getStatus() != null) {
+            try {
+                lessonServiceUtils.validateLessonStatus(lessonToUpdate.getStatus(), request.getStatus());
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+
+            if (request.getStatus() == CourseStatus.ARCHIVED) {
+                lessonToUpdate.setDeletedAt(LocalDateTime.now());
+            } else {
+                lessonToUpdate.setDeletedAt(null);
+            }
+        }
+
+        lessonMapper.updateLessonFromDto(request, lessonToUpdate);
+
+        Lesson savedLesson = lessonRepository.save(lessonToUpdate);
+        return lessonMapper.toDto(savedLesson);
+    }
+
+    @Override
+    @Transactional
+    public List<LessonDTOs.LessonResponseDto> bulkUpdateLessons(LessonDTOs.BulkUpdateLessonDTO request) {
+
+        if (request.getLessonIds().size() != request.getLessons().size()) {
+            throw new InvalidRequestException("Number of lesson IDs and update requests must match");
+        }
+
+        // Validate number of allowed lessons per request
+        lessonServiceUtils.validateBulkOperation(request.getLessonIds());
+
+        List<LessonDTOs.UpdateLessonDTO> listLessonsPayload = request.getLessons();
+        List<Lesson> lessonsToUpdate = lessonRepository.findAllById(request.getLessonIds());
+
+        // Validate accessibility
+        lessonsToUpdate.forEach(lesson -> chapterServiceUtils.validateChapterAccess(lesson.getChapter()));
+
+        // Validate order
+        List<Integer> payloadOrders = request.getLessons().stream().map(LessonDTOs.UpdateLessonDTO::getOrder).filter(Objects::nonNull).toList();
+
+        if (!payloadOrders.isEmpty() && lessonServiceUtils.IsListOrdersContainsDuplicates(payloadOrders)) {
+            throw new InvalidRequestException("Duplicate lesson order found");
+        }
+
+        List<String> takenLessonOrders = new ArrayList<>();
+        for (Integer order : payloadOrders) {
+            var takenLessonOrder = lessonServiceUtils.hasLessonOrderTakenSingle(lessonsToUpdate.get(0).getChapter().getId(), order);
+            if (takenLessonOrder != null) {
+                takenLessonOrders.add(takenLessonOrder);
+            }
+        }
+
+        if (!takenLessonOrders.isEmpty()) {
+            throw new InvalidRequestException(
+                    String.format("One or more lesson orders have been taken in this chapter: %s",
+                            String.join(", ", takenLessonOrders)
+                    )
+            );
+        }
+
+        // Validate status
+        for (int i = 0; i < lessonsToUpdate.size(); i++) {
+            LessonDTOs.UpdateLessonDTO lessonDTOPayload = listLessonsPayload.get(i);
+            if (lessonDTOPayload.getStatus() != null) {
+
+                try {
+                    lessonServiceUtils.validateLessonStatus(lessonsToUpdate.get(i).getStatus(), lessonDTOPayload.getStatus());
+                } catch (JsonProcessingException e) {
+                    throw new RuntimeException(e);
+                }
+
+                if (lessonDTOPayload.getStatus() == CourseStatus.ARCHIVED) {
+                    lessonsToUpdate.get(i).setDeletedAt(LocalDateTime.now());
+                } else {
+                    lessonsToUpdate.get(i).setDeletedAt(null);
+                }
+            }
+        }
+
+        // Map update info
+        for (int i = 0; i < lessonsToUpdate.size(); i++) {
+            LessonDTOs.UpdateLessonDTO lessonDTOPayload = listLessonsPayload.get(i);
+            lessonMapper.updateLessonFromDto(lessonDTOPayload, lessonsToUpdate.get(i));
+        }
+
+        List<Lesson> savedLessons = lessonRepository.saveAll(lessonsToUpdate);
 
         return savedLessons.stream().map(lessonMapper::toDto).toList();
     }

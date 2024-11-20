@@ -27,7 +27,7 @@ public interface ILessonRepository extends JpaRepository<Lesson, Long>, JpaSpeci
                    c.title  as course_title,
                    c.id     as course_id,
                    ch.title as chapter_title,
-                   ch.id    as chapter_id
+                   ch.id    as chapterId
             from lessons l
                      left join chapters ch on ch.id = l.chapter_id
                      left join courses c on c.id = ch.course_id
@@ -137,12 +137,9 @@ public interface ILessonRepository extends JpaRepository<Lesson, Long>, JpaSpeci
             SELECT COUNT(l) = :expectedCount 
             FROM Lesson l 
             WHERE l.id IN :lessonIds 
-            AND l.chapter.id = :chapterId
-            AND l.deletedAt IS NULL
             """)
-    boolean validateLessonsExists(
+    Boolean validateLessonsExists(
             @Param("lessonIds") List<Long> lessonIds,
-            @Param("chapterId") Long chapterId,
             @Param("expectedCount") int expectedCount
     );
 

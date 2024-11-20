@@ -143,6 +143,10 @@ public class LessonDTOs {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class BulkUpdateLessonDTO {
+
+        @NotNull(message = "At least one lesson Ids is required")
+        private List<Long> lessonIds;
+
         @NotEmpty(message = "At least one lesson is required")
         private List<UpdateLessonDTO> lessons;
     }

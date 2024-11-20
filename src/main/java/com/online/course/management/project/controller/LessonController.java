@@ -8,9 +8,7 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -39,5 +37,19 @@ public class LessonController {
 
         List<LessonDTOs.LessonResponseDto> createdLessons = lessonService.bulkCreateLessons(request);
         return ResponseEntity.status(201).body(createdLessons);
+    }
+
+    @PutMapping(LessonConstants.UPDATE_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR"})
+    public ResponseEntity<LessonDTOs.LessonResponseDto> updateLesson(@PathVariable @Valid long id, @RequestBody @Valid LessonDTOs.UpdateLessonDTO request) {
+        LessonDTOs.LessonResponseDto updatedLesson = lessonService.updateLesson(id, request);
+        return ResponseEntity.ok(updatedLesson);
+    }
+
+    @PutMapping(LessonConstants.BULK_UPDATE_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR"})
+    public ResponseEntity<List<LessonDTOs.LessonResponseDto>> bulkUpdateLessons(@RequestBody @Valid LessonDTOs.BulkUpdateLessonDTO request) {
+        List<LessonDTOs.LessonResponseDto> updatedLessons = lessonService.bulkUpdateLessons(request);
+        return ResponseEntity.ok(updatedLessons);
     }
 }
