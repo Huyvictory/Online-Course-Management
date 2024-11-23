@@ -13,4 +13,12 @@ public interface ILessonService {
     LessonDTOs.LessonResponseDto updateLesson(Long id, LessonDTOs.UpdateLessonDTO request);
 
     List<LessonDTOs.LessonResponseDto> bulkUpdateLessons(LessonDTOs.BulkUpdateLessonDTO request);
+
+    void deleteSingleLesson(Long id);
+
+    void bulkDeleteLessons(List<Long> ids);
+
+    void restoreLesson(Long id);
+
+    void bulkRestoreLessons(List<Long> ids);
 }

@@ -152,6 +152,16 @@ public class LessonDTOs {
     }
 
     @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BulkOperationLessonDTO {
+        @NotNull(message = "Lesson IDs are required")
+        @NotEmpty(message = "At least one lesson ID is required")
+        private List<Long> lessonIds;
+    }
+
+    @Data
     @AllArgsConstructor
     public static class RestoreLessonResponseDTO {
         private String message;

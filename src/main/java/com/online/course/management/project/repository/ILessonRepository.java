@@ -90,35 +90,25 @@ public interface ILessonRepository extends JpaRepository<Lesson, Long>, JpaSpeci
     // Remove soft deleted lessons
     @Modifying
     @Query(value = """
-            with lessons_to_delete as (
-                select id from lessons
-                where id in (:lessonIds)
-                and deleted_at is null
-            )
-                        
             update lessons
             set deleted_at = CURRENT_TIMESTAMP,
                  updated_at = CURRENT_TIMESTAMP,
                 status = 'ARCHIVED'
-            where id in (select id from lessons_to_delete);
+            where id in (:lessonIds)
+            and deleted_at is null;
             """,
             nativeQuery = true)
     void batchSoftDeleteLessons(@Param("lessonIds") List<Long> lessonsIds);
 
     // Restore soft deleted lessons
     @Modifying
-    @Query(value = """
-            with lessons_to_restore as (
-                select id from lessons
-                where id in (:lessonIds)
-                and deleted_at is not null
-            )
-                        
+    @Query(value = """         
             update lessons
             set deleted_at = null,
                  updated_at = CURRENT_TIMESTAMP,
                 status = 'DRAFT'
-            where id in (select id from lessons_to_restore);
+            where id in (:lessonIds)
+            and deleted_at is not null;
             """,
             nativeQuery = true)
     void batchRestoreLessons(@Param("lessonIds") List<Long> lessonsIds);

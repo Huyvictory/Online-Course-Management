@@ -52,4 +52,32 @@ public class LessonController {
         List<LessonDTOs.LessonResponseDto> updatedLessons = lessonService.bulkUpdateLessons(request);
         return ResponseEntity.ok(updatedLessons);
     }
+
+    @DeleteMapping(LessonConstants.DELETE_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR"})
+    public ResponseEntity<String> deleteLesson(@PathVariable @Valid long id) {
+        lessonService.deleteSingleLesson(id);
+        return ResponseEntity.ok("Lesson deleted successfully");
+    }
+
+    @DeleteMapping(LessonConstants.BULK_DELETE_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR"})
+    public ResponseEntity<String> bulkDeleteLessons(@RequestBody @Valid LessonDTOs.BulkOperationLessonDTO request) {
+        lessonService.bulkDeleteLessons(request.getLessonIds());
+        return ResponseEntity.ok("Lessons deleted successfully");
+    }
+
+    @PostMapping(LessonConstants.RESTORE_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR"})
+    public ResponseEntity<String> restoreLesson(@PathVariable @Valid long id) {
+        lessonService.restoreLesson(id);
+        return ResponseEntity.ok("Lesson restored successfully");
+    }
+
+    @PostMapping(LessonConstants.BULK_RESTORE_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR"})
+    public ResponseEntity<String> bulkRestoreLessons(@RequestBody @Valid LessonDTOs.BulkOperationLessonDTO request) {
+        lessonService.bulkRestoreLessons(request.getLessonIds());
+        return ResponseEntity.ok("Lessons restored successfully");
+    }
 }

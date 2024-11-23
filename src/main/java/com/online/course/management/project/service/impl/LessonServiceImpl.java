@@ -213,4 +213,74 @@ public class LessonServiceImpl implements ILessonService {
 
         return savedLessons.stream().map(lessonMapper::toDto).toList();
     }
+
+    @Override
+    @Transactional
+    public void deleteSingleLesson(Long id) {
+        log.info("Deleting lesson with ID: {}", id);
+
+        Lesson lessonToDelete = lessonServiceUtils.GetLessonOrThrow(id);
+        chapterServiceUtils.validateChapterAccess(lessonToDelete.getChapter());
+
+        if (lessonToDelete.getDeletedAt() != null) {
+            throw new InvalidRequestException("Lesson is already deleted");
+        }
+
+        lessonRepository.batchSoftDeleteLessons(List.of(id));
+
+        log.info("Deleted lesson with ID: {}", id);
+    }
+
+    @Override
+    @Transactional
+    public void bulkDeleteLessons(List<Long> ids) {
+        log.info("Bulk deleting {} lessons", ids.size());
+
+        List<Lesson> lessonsToDelete = lessonRepository.findAllById(ids);
+
+        lessonServiceUtils.validateBulkOperation(ids);
+
+        for (Lesson lesson : lessonsToDelete) {
+            chapterServiceUtils.validateChapterAccess(lesson.getChapter());
+        }
+
+        lessonRepository.batchSoftDeleteLessons(ids);
+
+        log.info("Successfully deleted {} lessons", ids.size());
+    }
+
+    @Override
+    @Transactional
+    public void restoreLesson(Long id) {
+        log.info("Restoring lesson with ID: {}", id);
+
+        Lesson lessonToRestore = lessonServiceUtils.GetLessonOrThrow(id);
+        chapterServiceUtils.validateChapterAccess(lessonToRestore.getChapter());
+
+        if (lessonToRestore.getDeletedAt() == null) {
+            throw new InvalidRequestException("Lesson is not deleted");
+        }
+
+        lessonRepository.batchRestoreLessons(List.of(id));
+
+        log.info("Restored lesson with ID: {}", id);
+    }
+
+    @Override
+    @Transactional
+    public void bulkRestoreLessons(List<Long> ids) {
+        log.info("Bulk restoring {} lessons", ids.size());
+
+        List<Lesson> lessonsToRestore = lessonRepository.findAllById(ids);
+
+        lessonServiceUtils.validateBulkOperation(ids);
+
+        for (Lesson lesson : lessonsToRestore) {
+            chapterServiceUtils.validateChapterAccess(lesson.getChapter());
+        }
+
+        lessonRepository.batchRestoreLessons(ids);
+
+        log.info("Successfully restored {} lessons", ids.size());
+    }
 }

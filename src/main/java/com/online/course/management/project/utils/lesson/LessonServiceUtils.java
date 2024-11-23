@@ -104,7 +104,7 @@ public class LessonServiceUtils {
             throw new InvalidRequestException("Duplicate lessons IDs found");
         }
 
-        // Validate all chapters exist
+        // Validate all lessons exist
         if (!lessonRepository.validateLessonsExists(lessonIds, lessonIds.size())) {
             throw new ResourceNotFoundException("One or more lessons not found");
         }
