@@ -10,4 +10,6 @@ public class LessonConstants {
     public static final String BULK_DELETE_PATH = "/bulk-delete";
     public static final String RESTORE_PATH = "{id}/restore";
     public static final String BULK_RESTORE_PATH = "/bulk-restore";
+    public static final String SEARCH_PATH = "/search";
+    public static final String REORDER_PATH = "{id}/reorder";
 }

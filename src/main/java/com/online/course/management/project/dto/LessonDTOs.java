@@ -9,6 +9,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public class LessonDTOs {
 
@@ -107,9 +108,11 @@ public class LessonDTOs {
     public static class LessonSearchDTO extends PaginationDto.PaginationRequestDto {
         private String title;
         private CourseStatus status;
-        private Long courseId;
-        private Long chapterId;
+        private List<Long> courseIds;
+        private List<Long> chapterIds;
         private LessonType type;
+
+        private Map<String, String> sort;
 
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
         private LocalDateTime fromDate;

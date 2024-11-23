@@ -2,6 +2,7 @@ package com.online.course.management.project.controller;
 
 import com.online.course.management.project.constants.LessonConstants;
 import com.online.course.management.project.dto.LessonDTOs;
+import com.online.course.management.project.dto.PaginationDto;
 import com.online.course.management.project.security.RequiredRole;
 import com.online.course.management.project.service.interfaces.ILessonService;
 import jakarta.validation.Valid;
@@ -79,5 +80,28 @@ public class LessonController {
     public ResponseEntity<String> bulkRestoreLessons(@RequestBody @Valid LessonDTOs.BulkOperationLessonDTO request) {
         lessonService.bulkRestoreLessons(request.getLessonIds());
         return ResponseEntity.ok("Lessons restored successfully");
+    }
+
+    @PostMapping(LessonConstants.SEARCH_PATH)
+    public ResponseEntity<PaginationDto.PaginationResponseDto<LessonDTOs.LessonDetailResponseDto>> searchLessons(
+            @Valid @RequestBody LessonDTOs.LessonSearchDTO searchRequest) {
+
+        var lessonsPage = lessonService.searchLessons(searchRequest);
+
+        var response = new PaginationDto.PaginationResponseDto<>(
+                lessonsPage.getContent(),
+                lessonsPage.getNumber() + 1,
+                lessonsPage.getSize(),
+                lessonsPage.getTotalElements()
+        );
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(LessonConstants.REORDER_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR"})
+    public ResponseEntity<String> reorderLessons(@PathVariable @Valid long id) {
+        lessonService.reorderLessons(id);
+        return ResponseEntity.ok("Lessons reordered successfully");
     }
 }

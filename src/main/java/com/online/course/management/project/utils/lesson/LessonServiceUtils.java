@@ -10,9 +10,12 @@ import com.online.course.management.project.repository.IChapterRepository;
 import com.online.course.management.project.repository.ILessonRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 @Slf4j
@@ -108,5 +111,53 @@ public class LessonServiceUtils {
         if (!lessonRepository.validateLessonsExists(lessonIds, lessonIds.size())) {
             throw new ResourceNotFoundException("One or more lessons not found");
         }
+    }
+
+
+    public void validateSortFields(Map<String, String> sort) {
+        Set<String> validFields = Set.of(
+                "title",
+                "order_number",
+                "status",
+                "type",
+                "created_at"
+        );
+
+        Set<String> invalidFields = sort.keySet().stream()
+                .filter(field -> !validFields.contains(field))
+                .collect(Collectors.toSet());
+
+        if (!invalidFields.isEmpty()) {
+            throw new InvalidRequestException(
+                    String.format("Invalid sort fields: %s. Valid fields are: %s",
+                            String.join(", ", invalidFields),
+                            String.join(", ", validFields))
+            );
+        }
+
+        // Validate sort directions
+        sort.values().forEach(direction -> {
+            if (!direction.equalsIgnoreCase("asc") && !direction.equalsIgnoreCase("desc")) {
+                throw new InvalidRequestException(
+                        String.format("Invalid sort direction: %s. Must be 'asc' or 'desc'", direction)
+                );
+            }
+        });
+    }
+
+    public Sort createLessonSortParams(Map<String, String> sortParams) {
+        if (sortParams == null || sortParams.isEmpty()) {
+            return Sort.by(Sort.Direction.DESC, "created_at");
+        }
+
+        List<Sort.Order> orders = sortParams.entrySet().stream()
+                .map(entry -> {
+                    Sort.Direction direction = entry.getValue().equalsIgnoreCase("asc") ?
+                            Sort.Direction.ASC : Sort.Direction.DESC;
+                    return JpaSort.unsafe(direction, entry.getKey()).getOrderFor(entry.getKey());
+                })
+                .collect(Collectors.toList());
+
+        return Sort.by(orders);
     }
 }

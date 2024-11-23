@@ -37,14 +37,22 @@ public interface ILessonRepository extends JpaRepository<Lesson, Long>, JpaSpeci
 
     // Search lessons with filters
     @Query(value = """
-            SELECT l.*
+            SELECT l.*,
+                   c.id as courseId,
+                   ch.id as chapterId
             FROM lessons l
             LEFT JOIN chapters ch ON l.chapter_id = ch.id
             LEFT JOIN courses c ON ch.course_id = c.id
             WHERE (:title IS NULL OR LOWER(l.title) LIKE LOWER(CONCAT('%', :title, '%')))
             AND (:status IS NULL OR l.status = :status)
-            AND (:courseId IS NULL OR c.id = :courseId)
-            AND (:chapterId IS NULL OR ch.id = :chapterId)
+            AND (
+                :#{#courseIds.size()} = 0\s
+                OR c.id IN (:courseIds)
+            )
+            AND (
+                :#{#chapterIds.size()} = 0\s
+                OR ch.id IN (:chapterIds)
+            )
             AND (:type IS NULL OR l.type = :type)
             AND (:fromDate IS NULL OR l.created_at >= :fromDate)
             AND (:toDate IS NULL OR l.created_at <= :toDate)
@@ -57,8 +65,14 @@ public interface ILessonRepository extends JpaRepository<Lesson, Long>, JpaSpeci
                     LEFT JOIN courses c ON ch.course_id = c.id
                     WHERE (:title IS NULL OR LOWER(l.title) LIKE LOWER(CONCAT('%', :title, '%')))
                     AND (:status IS NULL OR l.status = :status)
-                    AND (:courseId IS NULL OR c.id = :courseId)
-                    AND (:chapterId IS NULL OR ch.id = :chapterId)
+                    AND (
+                        :#{#courseIds.size()} = 0\s
+                        OR c.id IN (:courseIds)
+                    )
+                    AND (
+                        :#{#chapterIds.size()} = 0\s
+                        OR ch.id IN (:chapterIds)
+                    )
                     AND (:type IS NULL OR l.type = :type)
                     AND (:fromDate IS NULL OR l.created_at >= :fromDate)
                     AND (:toDate IS NULL OR l.created_at <= :toDate)
@@ -68,24 +82,13 @@ public interface ILessonRepository extends JpaRepository<Lesson, Long>, JpaSpeci
     Page<Lesson> searchLessons(
             @Param("title") String title,
             @Param("status") String status,
-            @Param("courseId") Long courseId,
-            @Param("chapterId") Long chapterId,
+            @Param("courseIds") List<Long> courseIds,
+            @Param("chapterIds") List<Long> chapterIds,
             @Param("type") String type,
             @Param("fromDate") LocalDateTime fromDate,
             @Param("toDate") LocalDateTime toDate,
             Pageable pageable
     );
-
-    // Find all lessons by chapter id
-    @Query(value = """
-            select l.*, ch.title as chapter_title
-            from lessons l
-                     inner join chapters ch on ch.id = l.chapter_id
-            where ch.id = :chapterId
-            order by l.order_number
-            """,
-            nativeQuery = true)
-    List<Lesson> findAllLessonsByChapterId(@Param("chapterId") Long chapterId);
 
     // Remove soft deleted lessons
     @Modifying

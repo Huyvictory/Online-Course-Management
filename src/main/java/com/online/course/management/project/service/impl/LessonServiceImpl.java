@@ -14,10 +14,14 @@ import com.online.course.management.project.utils.lesson.LessonServiceUtils;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -282,5 +286,56 @@ public class LessonServiceImpl implements ILessonService {
         lessonRepository.batchRestoreLessons(ids);
 
         log.info("Successfully restored {} lessons", ids.size());
+    }
+
+    @Override
+    @Transactional
+    public Page<LessonDTOs.LessonDetailResponseDto> searchLessons(LessonDTOs.LessonSearchDTO request) {
+        log.info("Searching lessons with criteria: {}", request);
+
+        Pageable pageable = null;
+
+        // Validate and create sort if provided
+        if (request.getSort() != null) {
+            lessonServiceUtils.validateSortFields(request.getSort());
+
+        }
+        pageable = PageRequest.of(
+                request.getPage() - 1,
+                request.getLimit(),
+                lessonServiceUtils.createLessonSortParams(request.getSort())
+        );
+
+        // Ensure courseIds and chapterIds are not null
+        List<Long> courseIds = request.getCourseIds() != null ? request.getCourseIds() : Collections.emptyList();
+        List<Long> chapterIds = request.getChapterIds() != null ? request.getChapterIds() : Collections.emptyList();
+
+        return lessonRepository.searchLessons(
+                request.getTitle(),
+                request.getStatus() != null ? request.getStatus().name() : null,
+                courseIds,
+                chapterIds,
+                request.getType() != null ? request.getType().name() : null,
+                request.getFromDate(),
+                request.getToDate(),
+                pageable
+        ).map(lessonMapper::toDetailDto);
+    }
+
+    @Override
+    @Transactional
+    public void reorderLessons(Long chapterId) {
+        log.info("Reordering lessons for chapter ID: {}", chapterId);
+
+        if (chapterId == null || chapterId < 1) {
+            throw new InvalidRequestException("Chapter ID is required");
+        }
+
+        Chapter chapter = chapterServiceUtils.getChapterOrThrow(chapterId);
+        chapterServiceUtils.validateChapterAccess(chapter);
+
+        lessonRepository.reorderLessons(chapterId);
+
+        log.info("Lessons reordered successfully");
     }
 }

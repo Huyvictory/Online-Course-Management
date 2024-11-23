@@ -1,6 +1,7 @@
 package com.online.course.management.project.service.interfaces;
 
 import com.online.course.management.project.dto.LessonDTOs;
+import org.springframework.data.domain.Page;
 
 import java.util.List;
 
@@ -21,4 +22,8 @@ public interface ILessonService {
     void restoreLesson(Long id);
 
     void bulkRestoreLessons(List<Long> ids);
+
+    Page<LessonDTOs.LessonDetailResponseDto> searchLessons(LessonDTOs.LessonSearchDTO request);
+
+    void reorderLessons(Long chapterId);
 }
