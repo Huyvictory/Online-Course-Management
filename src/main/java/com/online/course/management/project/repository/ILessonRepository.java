@@ -18,13 +18,16 @@ import java.util.Optional;
 @Repository
 public interface ILessonRepository extends JpaRepository<Lesson, Long>, JpaSpecificationExecutor<Lesson> {
 
+    @Override
+    <S extends Lesson> S save(S lesson);
+
     // Find Lesson details by id
     @Query(value = """
             select l.*,
                    c.title  as course_title,
                    c.id     as course_id,
                    ch.title as chapter_title,
-                   ch.id    as chapter_id
+                   ch.id    as chapterId
             from lessons l
                      left join chapters ch on ch.id = l.chapter_id
                      left join courses c on c.id = ch.course_id
@@ -34,14 +37,22 @@ public interface ILessonRepository extends JpaRepository<Lesson, Long>, JpaSpeci
 
     // Search lessons with filters
     @Query(value = """
-            SELECT l.*
+            SELECT l.*,
+                   c.id as courseId,
+                   ch.id as chapterId
             FROM lessons l
             LEFT JOIN chapters ch ON l.chapter_id = ch.id
             LEFT JOIN courses c ON ch.course_id = c.id
             WHERE (:title IS NULL OR LOWER(l.title) LIKE LOWER(CONCAT('%', :title, '%')))
             AND (:status IS NULL OR l.status = :status)
-            AND (:courseId IS NULL OR c.id = :courseId)
-            AND (:chapterId IS NULL OR ch.id = :chapterId)
+            AND (
+                :#{#courseIds.size()} = 0\s
+                OR c.id IN (:courseIds)
+            )
+            AND (
+                :#{#chapterIds.size()} = 0\s
+                OR ch.id IN (:chapterIds)
+            )
             AND (:type IS NULL OR l.type = :type)
             AND (:fromDate IS NULL OR l.created_at >= :fromDate)
             AND (:toDate IS NULL OR l.created_at <= :toDate)
@@ -54,8 +65,14 @@ public interface ILessonRepository extends JpaRepository<Lesson, Long>, JpaSpeci
                     LEFT JOIN courses c ON ch.course_id = c.id
                     WHERE (:title IS NULL OR LOWER(l.title) LIKE LOWER(CONCAT('%', :title, '%')))
                     AND (:status IS NULL OR l.status = :status)
-                    AND (:courseId IS NULL OR c.id = :courseId)
-                    AND (:chapterId IS NULL OR ch.id = :chapterId)
+                    AND (
+                        :#{#courseIds.size()} = 0\s
+                        OR c.id IN (:courseIds)
+                    )
+                    AND (
+                        :#{#chapterIds.size()} = 0\s
+                        OR ch.id IN (:chapterIds)
+                    )
                     AND (:type IS NULL OR l.type = :type)
                     AND (:fromDate IS NULL OR l.created_at >= :fromDate)
                     AND (:toDate IS NULL OR l.created_at <= :toDate)
@@ -65,116 +82,57 @@ public interface ILessonRepository extends JpaRepository<Lesson, Long>, JpaSpeci
     Page<Lesson> searchLessons(
             @Param("title") String title,
             @Param("status") String status,
-            @Param("courseId") Long courseId,
-            @Param("chapterId") Long chapterId,
+            @Param("courseIds") List<Long> courseIds,
+            @Param("chapterIds") List<Long> chapterIds,
             @Param("type") String type,
             @Param("fromDate") LocalDateTime fromDate,
             @Param("toDate") LocalDateTime toDate,
             Pageable pageable
     );
 
-    // Find all lessons by chapter id
-    @Query(value = """
-            select l.*, ch.title as chapter_title
-            from lessons l
-                     inner join chapters ch on ch.id = l.chapter_id
-            where ch.id = :chapterId
-            order by l.order_number
-            """,
-            nativeQuery = true)
-    List<Lesson> findAllLessonsByChapterId(@Param("chapterId") Long chapterId);
-
-    // Batch create lessons
-    @Modifying
-    @Query(value = """
-            INSERT INTO lessons 
-                (chapter_id, title, content, order_number, type, status, created_at, updated_at)
-            VALUES 
-                (:#{#lesson.chapter.id}, :#{#lesson.title}, :#{#lesson.content}, 
-                 :#{#lesson.order}, :#{#lesson.type}, :#{#lesson.status}, 
-                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            """, nativeQuery = true)
-    void batchCreateLessons(@Param("lesson") List<Lesson> lessons);
-
-    // Batch update lessons
-    @Modifying
-    @Query(value = """
-            UPDATE lessons
-            SET title = :title,
-                content = :content,
-                type = :type,
-                status = :status,
-                chapter_id = :chapterId,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = :id
-            AND deleted_at IS NULL
-            """, nativeQuery = true)
-    void batchUpdateLesson(
-            @Param("id") Long id,
-            @Param("title") String title,
-            @Param("content") String content,
-            @Param("type") String type,
-            @Param("status") String status,
-            @Param("chapterId") Long chapterId
-    );
-
     // Remove soft deleted lessons
     @Modifying
     @Query(value = """
-            with lessons_to_delete as (
-                select id from lessons
-                where id in (:lessonIds)
-                and deleted_at is null
-            )
-                        
             update lessons
             set deleted_at = CURRENT_TIMESTAMP,
                  updated_at = CURRENT_TIMESTAMP,
                 status = 'ARCHIVED'
-            where id in (select id from lessons_to_delete);
+            where id in (:lessonIds)
+            and deleted_at is null;
             """,
             nativeQuery = true)
     void batchSoftDeleteLessons(@Param("lessonIds") List<Long> lessonsIds);
 
     // Restore soft deleted lessons
     @Modifying
-    @Query(value = """
-            with lessons_to_restore as (
-                select id from lessons
-                where id in (:lessonIds)
-                and deleted_at is not null
-            )
-                        
+    @Query(value = """         
             update lessons
             set deleted_at = null,
                  updated_at = CURRENT_TIMESTAMP,
                 status = 'DRAFT'
-            where id in (select id from lessons_to_restore);
+            where id in (:lessonIds)
+            and deleted_at is not null;
             """,
             nativeQuery = true)
     void batchRestoreLessons(@Param("lessonIds") List<Long> lessonsIds);
 
     @Query("""
-            SELECT COUNT(l) > 0 
+            SELECT exists (
             FROM Lesson l 
             WHERE l.chapter.id = :chapterId 
             AND l.order = :order 
-            AND l.id != :lessonId 
-            AND l.deletedAt IS NULL
+            AND l.deletedAt IS NULL )
             """)
-    boolean isOrderNumberLessonTaken(@Param("chapterId") Long chapterId, @Param("order") Integer order, @Param("lessonId") Long lessonId);
+    boolean isOrderNumberLessonTaken(@Param("chapterId") Long chapterId, @Param("order") Integer order);
 
     // Validate lessons belong to chapter
     @Query("""
             SELECT COUNT(l) = :expectedCount 
             FROM Lesson l 
             WHERE l.id IN :lessonIds 
-            AND l.chapter.id = :chapterId
-            AND l.deletedAt IS NULL
             """)
-    boolean validateLessonsExists(
+    Boolean validateLessonsExists(
             @Param("lessonIds") List<Long> lessonIds,
-            @Param("chapterId") Long chapterId,
             @Param("expectedCount") int expectedCount
     );
 

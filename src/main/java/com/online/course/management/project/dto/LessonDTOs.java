@@ -9,6 +9,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public class LessonDTOs {
 
@@ -56,9 +57,6 @@ public class LessonDTOs {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class CreateLessonDTO {
-        @NotNull(message = "Chapter ID is required")
-        private Long chapterId;
-
         @NotBlank(message = "Lesson title is required")
         @Size(max = 255, message = "Title must not exceed 255 characters")
         private String title;
@@ -66,6 +64,7 @@ public class LessonDTOs {
         @NotBlank(message = "Content is required")
         private String content;
 
+        @NotNull(message = "Lesson order is required")
         @Min(value = 1, message = "Order must be greater than 0")
         private Integer order;
 
@@ -73,6 +72,15 @@ public class LessonDTOs {
         private LessonType type;
 
         private CourseStatus status = CourseStatus.DRAFT;
+    }
+
+    @EqualsAndHashCode(callSuper = true)
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateLessonDTOWithChapterId extends CreateLessonDTO {
+        @NotNull(message = "Chapter ID is required")
+        private Long chapterId;
     }
 
     @Data
@@ -100,9 +108,11 @@ public class LessonDTOs {
     public static class LessonSearchDTO extends PaginationDto.PaginationRequestDto {
         private String title;
         private CourseStatus status;
-        private Long courseId;
-        private Long chapterId;
+        private List<Long> courseIds;
+        private List<Long> chapterIds;
         private LessonType type;
+
+        private Map<String, String> sort;
 
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
         private LocalDateTime fromDate;
@@ -136,8 +146,22 @@ public class LessonDTOs {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class BulkUpdateLessonDTO {
+
+        @NotNull(message = "At least one lesson Ids is required")
+        private List<Long> lessonIds;
+
         @NotEmpty(message = "At least one lesson is required")
         private List<UpdateLessonDTO> lessons;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BulkOperationLessonDTO {
+        @NotNull(message = "Lesson IDs are required")
+        @NotEmpty(message = "At least one lesson ID is required")
+        private List<Long> lessonIds;
     }
 
     @Data
