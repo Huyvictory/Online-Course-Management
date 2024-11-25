@@ -76,10 +76,11 @@ public class ChapterServiceImpl implements IChapterService {
     @Override
     @Transactional
     public List<ChapterDTOs.ChapterDetailResponseDto> bulkCreateChapters(ChapterDTOs.BulkCreateChapterDTO request) {
-        log.info("Bulk creating chapters for course ID: {}", request.getChapters().get(0).getCourseId());
 
         // Validate request
         chapterServiceUtils.validateBulkCreateRequest(request);
+
+        log.info("Bulk creating chapters for course ID: {}", request.getChapters().get(0).getCourseId());
 
         // Get and validate course
         Course course = courseServiceUtils.getCourseWithValidation(request.getChapters().get(0).getCourseId());
