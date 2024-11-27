@@ -20,63 +20,42 @@ public interface IUserCourseRepository extends JpaRepository<UserCourse, Long>, 
      */
     boolean existsByUserIdAndCourseId(Long userId, Long courseId);
 
+    @Query(value = """
+            SELECT uc.*
+            FROM user_courses uc
+            WHERE uc.user_id = :userId
+            AND uc.course_id = :courseId
+            """, nativeQuery = true)
+    UserCourse findByUserIdAndCourseId(Long userId, Long courseId);
+
     /**
      * Search enrolled courses for a user with detailed statistics.
      * If no search criteria provided, returns all enrolled courses with statistics.
      */
     @Query(value = """
-        SELECT 
-            uc.*,
-            COUNT(DISTINCT CASE WHEN ulp.status = 'IN_PROGRESS' THEN ulp.lesson_id END) as processing_lessons,
-            COUNT(DISTINCT CASE WHEN ulp.status = 'COMPLETED' THEN ulp.lesson_id END) as completed_lessons,
-            (
-                SELECT COUNT(DISTINCT l.id)
-                FROM lessons l
-                JOIN chapters ch ON l.chapter_id = ch.id
-                WHERE ch.course_id = uc.course_id
-                AND l.deleted_at IS NULL
-            ) as total_lessons,
-            (
-                SELECT COALESCE(AVG(cr.rating), 0)
-                FROM course_ratings cr
-                WHERE cr.course_id = uc.course_id
-                AND cr.deleted_at IS NULL
-            ) as avg_rating
-        FROM user_courses uc
-        INNER JOIN courses c ON uc.course_id = c.id
-        LEFT JOIN users u ON c.instructor_id = u.id
-        LEFT JOIN user_lesson_progress ulp ON 
-            uc.user_id = ulp.user_id AND 
-            uc.course_id = ulp.course_id
-        WHERE uc.user_id = :userId
-        AND (:name IS NULL OR LOWER(c.title) LIKE LOWER(CONCAT('%', :name, '%')))
-        AND (:status IS NULL OR uc.status = :status)
-        AND (:instructorName IS NULL OR LOWER(u.real_name) LIKE LOWER(CONCAT('%', :instructorName, '%')))
-        AND (:fromDate IS NULL OR uc.enrollment_date >= :fromDate)
-        AND (:toDate IS NULL OR uc.enrollment_date <= :toDate)
-        AND (:minRating IS NULL OR 
-            (SELECT COALESCE(AVG(cr.rating), 0)
-             FROM course_ratings cr 
-             WHERE cr.course_id = uc.course_id 
-             AND cr.deleted_at IS NULL) >= :minRating)
-        AND (:maxRating IS NULL OR 
-            (SELECT COALESCE(AVG(cr.rating), 0)
-             FROM course_ratings cr 
-             WHERE cr.course_id = uc.course_id 
-             AND cr.deleted_at IS NULL) <= :maxRating)
-        AND (:lessonCount IS NULL OR 
-            (SELECT COUNT(DISTINCT l.id)
-             FROM lessons l 
-             JOIN chapters ch ON l.chapter_id = ch.id 
-             WHERE ch.course_id = uc.course_id 
-             AND l.deleted_at IS NULL) = :lessonCount)
-        GROUP BY uc.id, uc.course_id, c.id, u.id
-        """,
-            countQuery = """
-            SELECT COUNT(DISTINCT uc.id)
+            SELECT 
+                uc.*,
+                COUNT(DISTINCT CASE WHEN ulp.status = 'IN_PROGRESS' THEN ulp.lesson_id END) as processing_lessons,
+                COUNT(DISTINCT CASE WHEN ulp.status = 'COMPLETED' THEN ulp.lesson_id END) as completed_lessons,
+                (
+                    SELECT COUNT(DISTINCT l.id)
+                    FROM lessons l
+                    JOIN chapters ch ON l.chapter_id = ch.id
+                    WHERE ch.course_id = uc.course_id
+                    AND l.deleted_at IS NULL
+                ) as total_lessons,
+                (
+                    SELECT COALESCE(AVG(cr.rating), 0)
+                    FROM course_ratings cr
+                    WHERE cr.course_id = uc.course_id
+                    AND cr.deleted_at IS NULL
+                ) as avg_rating
             FROM user_courses uc
             INNER JOIN courses c ON uc.course_id = c.id
             LEFT JOIN users u ON c.instructor_id = u.id
+            LEFT JOIN user_lesson_progress ulp ON 
+                uc.user_id = ulp.user_id AND 
+                uc.course_id = ulp.course_id
             WHERE uc.user_id = :userId
             AND (:name IS NULL OR LOWER(c.title) LIKE LOWER(CONCAT('%', :name, '%')))
             AND (:status IS NULL OR uc.status = :status)
@@ -99,7 +78,36 @@ public interface IUserCourseRepository extends JpaRepository<UserCourse, Long>, 
                  JOIN chapters ch ON l.chapter_id = ch.id 
                  WHERE ch.course_id = uc.course_id 
                  AND l.deleted_at IS NULL) = :lessonCount)
-        """,
+            GROUP BY uc.id, uc.course_id, c.id, u.id
+            """,
+            countQuery = """
+                        SELECT COUNT(DISTINCT uc.id)
+                        FROM user_courses uc
+                        INNER JOIN courses c ON uc.course_id = c.id
+                        LEFT JOIN users u ON c.instructor_id = u.id
+                        WHERE uc.user_id = :userId
+                        AND (:name IS NULL OR LOWER(c.title) LIKE LOWER(CONCAT('%', :name, '%')))
+                        AND (:status IS NULL OR uc.status = :status)
+                        AND (:instructorName IS NULL OR LOWER(u.real_name) LIKE LOWER(CONCAT('%', :instructorName, '%')))
+                        AND (:fromDate IS NULL OR uc.enrollment_date >= :fromDate)
+                        AND (:toDate IS NULL OR uc.enrollment_date <= :toDate)
+                        AND (:minRating IS NULL OR 
+                            (SELECT COALESCE(AVG(cr.rating), 0)
+                             FROM course_ratings cr 
+                             WHERE cr.course_id = uc.course_id 
+                             AND cr.deleted_at IS NULL) >= :minRating)
+                        AND (:maxRating IS NULL OR 
+                            (SELECT COALESCE(AVG(cr.rating), 0)
+                             FROM course_ratings cr 
+                             WHERE cr.course_id = uc.course_id 
+                             AND cr.deleted_at IS NULL) <= :maxRating)
+                        AND (:lessonCount IS NULL OR 
+                            (SELECT COUNT(DISTINCT l.id)
+                             FROM lessons l 
+                             JOIN chapters ch ON l.chapter_id = ch.id 
+                             WHERE ch.course_id = uc.course_id 
+                             AND l.deleted_at IS NULL) = :lessonCount)
+                    """,
             nativeQuery = true)
     Page<UserCourse> searchUserEnrollments(
             @Param("userId") Long userId,
@@ -148,4 +156,38 @@ public interface IUserCourseRepository extends JpaRepository<UserCourse, Long>, 
             @Param("userId") Long userId,
             @Param("courseId") Long courseId
     );
+
+    @Query(value = """
+            UPDATE user_courses
+            SET status = 'DROPPED'
+            WHERE user_id = :userId
+            AND course_id = :courseId
+            """, nativeQuery = true)
+    void dropEnrollment(@Param("userId") Long userId, @Param("courseId") Long courseId);
+
+    @Query(value = """
+            UPDATE user_lesson_progress
+            SET status = 'DROPPED',
+            last_accessed_at = CURRENT_TIMESTAMP
+            WHERE user_id = :userId
+            AND course_id = :courseId
+            """, nativeQuery = true)
+    void dropRelevantProgress(@Param("userId") Long userId, @Param("courseId") Long courseId);
+
+    @Query(value = """
+            UPDATE user_courses
+            SET status = 'IN_PROGRESS'
+            WHERE user_id = :userId
+            AND course_id = :courseId
+            """, nativeQuery = true)
+    void resumeEnrollment(@Param("userId") Long userId, @Param("courseId") Long courseId);
+
+    @Query(value = """
+            UPDATE user_lesson_progress
+            SET status = 'IN_PROGRESS',
+            last_accessed_at = CURRENT_TIMESTAMP
+            WHERE user_id = :userId
+            AND course_id = :courseId
+            """, nativeQuery = true)
+    void resumeRelevantProgress(@Param("userId") Long userId, @Param("courseId") Long courseId);
 }
