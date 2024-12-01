@@ -5,7 +5,6 @@ import com.online.course.management.project.entity.Course;
 import com.online.course.management.project.entity.User;
 import com.online.course.management.project.entity.UserCourse;
 import com.online.course.management.project.entity.UserLessonProgress;
-import com.online.course.management.project.enums.EnrollmentStatus;
 import com.online.course.management.project.enums.ProgressStatus;
 import com.online.course.management.project.repository.IUserLessonProgressRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -13,9 +12,10 @@ import org.mapstruct.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.online.course.management.project.repository.IUserCourseRepository;
 
+import java.math.RoundingMode;
+import java.text.DecimalFormat;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Map;
 
 @Mapper(componentModel = "spring",
         unmappedTargetPolicy = ReportingPolicy.IGNORE,
@@ -73,7 +73,7 @@ public abstract class UserCourseMapper {
             }
 
             // Calculate total lessons in the course
-            int totalLessons = (int) userCourseRepository.getTotalLessons(userCourse.getCourse().getId());
+            int totalLessons = userCourseRepository.getTotalLessons(userCourse.getCourse().getId());
 
             // Get average rating from course ratings
             double avgRating = userCourseRepository.getAverageCourseRating(userCourse.getCourse().getId());
@@ -114,7 +114,7 @@ public abstract class UserCourseMapper {
         if (userCourse.getCompletionDate() == null || userCourse.getEnrollmentDate() == null) {
             return 0.0;
         }
-        return (double) ChronoUnit.DAYS.between(
+        return (double) ChronoUnit.MINUTES.between(
                 userCourse.getEnrollmentDate(),
                 userCourse.getCompletionDate()
         );
@@ -128,7 +128,13 @@ public abstract class UserCourseMapper {
                 .filter(ulp -> ulp.getStatus() == ProgressStatus.COMPLETED)
                 .count();
 
-        var completionRate = TotalCompletedLessons / userLessonProgresses.size();
-        return completionRate * 100.0;
+        var completionRate = ((double) TotalCompletedLessons / userLessonProgresses.size());
+
+        DecimalFormat df = new DecimalFormat("#.##");
+        df.setRoundingMode(RoundingMode.HALF_UP);
+
+        log.info("Completion rate: {}", completionRate * 100.0D);
+
+        return Double.parseDouble(df.format(completionRate * 100.0D));
     }
 }
