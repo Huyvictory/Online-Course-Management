@@ -8,16 +8,19 @@ import com.online.course.management.project.entity.UserLessonProgress;
 import com.online.course.management.project.enums.EnrollmentStatus;
 import com.online.course.management.project.enums.ProgressStatus;
 import com.online.course.management.project.repository.IUserLessonProgressRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.mapstruct.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.online.course.management.project.repository.IUserCourseRepository;
 
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 
 @Mapper(componentModel = "spring",
         unmappedTargetPolicy = ReportingPolicy.IGNORE,
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+@Slf4j
 public abstract class UserCourseMapper {
 
     @Autowired
@@ -29,38 +32,73 @@ public abstract class UserCourseMapper {
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "courseId", source = "course.id")
     @Mapping(target = "courseTitle", source = "course.title")
-    @Mapping(target = "instructorName", source = "user.realName")
+    @Mapping(target = "instructorName", source = "course.instructor.realName")
     @Mapping(target = "status", source = "status")
     @Mapping(target = "enrollmentDate", source = "enrollmentDate")
     @Mapping(target = "completionDate", source = "completionDate")
-    @Mapping(target = "processingLessons", ignore = true)
-    @Mapping(target = "completedLessons", ignore = true)
-    @Mapping(target = "totalLessons", ignore = true)
-    @Mapping(target = "averageRating", ignore = true)
-    public abstract UserCourseDTOs.UserCourseResponseDto toDto(UserCourse userCourse);
+    @Mapping(target = "processingLessons", constant = "0")
+    @Mapping(target = "completedLessons", constant = "0")
+    @Mapping(target = "totalLessons", constant = "0")
+    @Mapping(target = "averageRating", constant = "0.0")
+    @Mapping(target = "averageCompletionTime", constant = "0.0")
+    @Mapping(target = "completionRate", constant = "0.0")
+    abstract UserCourseDTOs.UserCourseResponseDto toBaseDto(UserCourse userCourse);
 
-    @AfterMapping
-    protected void mapStatistics(UserCourse userCourse, @MappingTarget UserCourseDTOs.UserCourseResponseDto dto) {
-        if (userCourse == null) return;
+    // Add a non-abstract method to handle the full mapping including statistics
+    public UserCourseDTOs.UserCourseResponseDto toDto(UserCourse userCourse) {
+        UserCourseDTOs.UserCourseResponseDto baseDto = toBaseDto(userCourse);
+        mapStatistics(userCourse, baseDto);
+        return baseDto;
+    }
 
-        var enrollmentWithStats = userCourseRepository
-                .findEnrollmentWithStats(userCourse.getUser().getId(), userCourse.getCourse().getId())
-                .orElse(null);
+    public void mapStatistics(UserCourse userCourse, @MappingTarget UserCourseDTOs.UserCourseResponseDto dto) {
+        System.out.println("AfterMapping is running for userCourse: " + userCourse.getId());
 
-        if (enrollmentWithStats != null) {
-            // These fields are populated by the native query
-            try {
-                dto.setProcessingLessons((Integer) enrollmentWithStats.getClass()
-                        .getMethod("getProcessingLessons").invoke(enrollmentWithStats));
-                dto.setCompletedLessons((Integer) enrollmentWithStats.getClass()
-                        .getMethod("getCompletedLessons").invoke(enrollmentWithStats));
-                dto.setTotalLessons((Integer) enrollmentWithStats.getClass()
-                        .getMethod("getTotalLessons").invoke(enrollmentWithStats));
-                dto.setAverageRating((Double) enrollmentWithStats.getClass()
-                        .getMethod("getAverageRating").invoke(enrollmentWithStats));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+        log.debug("Mapping statistics for userCourse: {}", userCourse.getId());
+
+        try {
+            // Get lesson progress statistics
+            List<UserLessonProgress> progressList = userLessonProgressRepository
+                    .findAllByUserIdAndCourseId(userCourse.getUser().getId(), userCourse.getCourse().getId());
+
+            // Count lessons by status
+            int processingCount = 0;
+            int completedCount = 0;
+            for (UserLessonProgress progress : progressList) {
+                if (progress.getStatus() == ProgressStatus.IN_PROGRESS) {
+                    processingCount++;
+                } else if (progress.getStatus() == ProgressStatus.COMPLETED) {
+                    completedCount++;
+                }
             }
+
+            // Calculate total lessons in the course
+            int totalLessons = (int) userCourseRepository.getTotalLessons(userCourse.getCourse().getId());
+
+            // Get average rating from course ratings
+            double avgRating = userCourseRepository.getAverageCourseRating(userCourse.getCourse().getId());
+
+            double avgCompletionTime = calculateAverageCompletionTime(userCourse);
+            double completionRate = calculateCompletionRate(userCourse);
+
+            // Set the statistics
+            dto.setProcessingLessons(processingCount);
+            dto.setCompletedLessons(completedCount);
+            dto.setTotalLessons(totalLessons);
+            dto.setAverageRating(avgRating);
+            dto.setAverageCompletionTime(avgCompletionTime);
+            dto.setCompletionRate(completionRate);
+
+            log.debug("Statistics mapped - Processing: {}, Completed: {}, Total: {}, Rating: {}",
+                    processingCount, completedCount, totalLessons, avgRating);
+
+        } catch (Exception e) {
+            log.error("Error mapping statistics for userCourse {}: {}", userCourse.getId(), e.getMessage());
+            // Set default values in case of error
+            dto.setProcessingLessons(0);
+            dto.setCompletedLessons(0);
+            dto.setTotalLessons(0);
+            dto.setAverageRating(0.0);
         }
     }
 
@@ -71,14 +109,6 @@ public abstract class UserCourseMapper {
     @Mapping(target = "completionDate", ignore = true)
     @Mapping(target = "status", constant = "ENROLLED")
     public abstract UserCourse toEntity(User user, Course course);
-
-    public abstract List<UserCourseDTOs.UserCourseResponseDto> toDtoList(List<UserCourse> userCourses);
-
-    @Mapping(target = "totalInProgress", expression = "processing_lessons")
-    @Mapping(target = "totalCompleted", expression = "completed_lessons")
-    @Mapping(target = "averageCompletionTime", expression = "java(calculateAverageCompletionTime(userCourse))")
-    @Mapping(target = "completionRate", expression = "java(calculateCompletionRate(userCourse))")
-    public abstract UserCourseDTOs.UserCourseStatisticsDTO toStatisticsDto(UserCourse userCourse);
 
     protected Double calculateAverageCompletionTime(UserCourse userCourse) {
         if (userCourse.getCompletionDate() == null || userCourse.getEnrollmentDate() == null) {

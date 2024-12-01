@@ -5,19 +5,15 @@ import org.springframework.data.domain.Page;
 
 public interface IUserCourseService {
 
-    UserCourseDTOs.UserCourseResponseDto enrollInCourse(Long userId, UserCourseDTOs.EnrollCourseRequestDto request);
+    UserCourseDTOs.UserCourseResponseDto enrollInCourse(UserCourseDTOs.UserCourseRequestDTO request);
 
-    UserCourseDTOs.UserCourseResponseDto getEnrollmentDetails(Long userId, Long courseId);
+    UserCourseDTOs.UserCourseResponseDto getEnrollmentDetails(Long courseId);
 
     Page<UserCourseDTOs.UserCourseResponseDto> searchUserEnrollments(
-            Long userId,
             UserCourseDTOs.UserCourseSearchDTO searchRequest
-
     );
 
-    UserCourseDTOs.UserCourseStatisticsDTO getUserCourseStatistics(Long userId, Long courseId);
+    void dropEnrollment(Long courseId);
 
-    void dropEnrollment(Long userId, Long courseId);
-
-    void resumeEnrollment(Long userId, Long courseId);
+    void resumeEnrollment(Long courseId);
 }
