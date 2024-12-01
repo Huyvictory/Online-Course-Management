@@ -5,7 +5,7 @@ import org.springframework.data.domain.Page;
 
 public interface IUserCourseService {
 
-    UserCourseDTOs.UserCourseResponseDto enrollInCourse(Long userId, UserCourseDTOs.EnrollCourseRequestDto request);
+    UserCourseDTOs.UserCourseResponseDto enrollInCourse(UserCourseDTOs.EnrollCourseRequestDto request);
 
     UserCourseDTOs.UserCourseResponseDto getEnrollmentDetails(Long userId, Long courseId);
 
@@ -14,8 +14,6 @@ public interface IUserCourseService {
             UserCourseDTOs.UserCourseSearchDTO searchRequest
 
     );
-
-    UserCourseDTOs.UserCourseStatisticsDTO getUserCourseStatistics(Long userId, Long courseId);
 
     void dropEnrollment(Long userId, Long courseId);
 

@@ -21,6 +21,7 @@ public class UserCourseDTOs {
         private Long userId;
         private Long courseId;
         private String courseTitle;
+        private String instructorName;
         private EnrollmentStatus status;
         private LocalDateTime enrollmentDate;
         private LocalDateTime completionDate;
@@ -36,6 +37,9 @@ public class UserCourseDTOs {
     public static class EnrollCourseRequestDto {
         @NotNull(message = "Course ID is required")
         private Long courseId;
+
+        @NotNull(message = "User ID is required")
+        private Long userId;
     }
 
     @Data
@@ -45,12 +49,15 @@ public class UserCourseDTOs {
     @EqualsAndHashCode(callSuper = true)
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class UserCourseSearchDTO extends PaginationDto.PaginationRequestDto {
+        @NotNull(message = "User ID is required")
+        private Long userId;
+
         private String name;
         private EnrollmentStatus status;
         private String instructorName;
         private Double minRating;
         private Double maxRating;
-        private Integer lessonCount;
+        private Integer totalLessons;
 
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
         private LocalDateTime fromDate;
@@ -89,9 +96,8 @@ public class UserCourseDTOs {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class UserCourseStatisticsDTO {
-        private Long totalEnrollments;
-        private Long activeEnrollments;
-        private Long completedCourses;
+        //        private Long totalInProgress;
+//        private Long totalCompleted;
         private Double averageCompletionTime;  // in days
         private Double completionRate;  // percentage
     }
