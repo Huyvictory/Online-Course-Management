@@ -1,6 +1,9 @@
 package com.online.course.management.project.utils.usercourse;
 
 import com.online.course.management.project.exception.business.InvalidRequestException;
+import com.online.course.management.project.exception.business.ResourceNotFoundException;
+import com.online.course.management.project.repository.IUserCourseRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.stereotype.Component;
@@ -12,6 +15,13 @@ import java.util.stream.Collectors;
 
 @Component
 public class UserCourseServiceUtils {
+
+    private final IUserCourseRepository userCourseRepository;
+
+    @Autowired
+    public UserCourseServiceUtils(IUserCourseRepository userCourseRepository) {
+        this.userCourseRepository = userCourseRepository;
+    }
 
     public void validateSortFields(Map<String, String> sort) {
         Set<String> validFields = Set.of(
@@ -45,7 +55,7 @@ public class UserCourseServiceUtils {
         });
     }
 
-    public Sort createChapterSort(Map<String, String> sortParams) {
+    public Sort createUserCourseSort(Map<String, String> sortParams) {
         if (sortParams == null || sortParams.isEmpty()) {
             return Sort.by(Sort.Direction.DESC, "enrollment_date");
         }
@@ -59,5 +69,15 @@ public class UserCourseServiceUtils {
                 .collect(Collectors.toList());
 
         return Sort.by(orders);
+    }
+
+    public void validateEnrollment(Long userId, Long courseId) {
+        // Perform all validations in one query
+        String status = userCourseRepository.validateEnrollmentEligibility(userId, courseId);
+        switch (status) {
+            case "ALREADY_ENROLLED" -> throw new InvalidRequestException("User is already enrolled in this course");
+            case "NO_LESSONS" -> throw new InvalidRequestException("Course has no lessons");
+            case "INVALID_COURSE" -> throw new ResourceNotFoundException("Course not found or is not available");
+        }
     }
 }

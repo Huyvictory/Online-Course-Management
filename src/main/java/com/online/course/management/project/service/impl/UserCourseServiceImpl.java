@@ -11,7 +11,6 @@ import com.online.course.management.project.exception.business.ResourceNotFoundE
 import com.online.course.management.project.mapper.UserCourseMapper;
 import com.online.course.management.project.repository.ICourseRepository;
 import com.online.course.management.project.repository.IUserCourseRepository;
-import com.online.course.management.project.repository.IUserLessonProgressRepository;
 import com.online.course.management.project.repository.IUserRepository;
 import com.online.course.management.project.service.interfaces.IUserCourseService;
 import com.online.course.management.project.utils.user.UserSecurityUtils;
@@ -56,15 +55,6 @@ public class UserCourseServiceImpl implements IUserCourseService {
         this.userSecurityUtils = userSecurityUtils;
     }
 
-    private void validateEnrollment(Long userId, Long courseId) {
-        // Perform all validations in one query
-        String status = userCourseRepository.validateEnrollmentEligibility(userId, courseId);
-        switch (status) {
-            case "ALREADY_ENROLLED" -> throw new InvalidRequestException("User is already enrolled in this course");
-            case "NO_LESSONS" -> throw new InvalidRequestException("Course has no lessons");
-            case "INVALID_COURSE" -> throw new ResourceNotFoundException("Course not found or is not available");
-        }
-    }
 
     @Override
     @Transactional
@@ -72,7 +62,7 @@ public class UserCourseServiceImpl implements IUserCourseService {
 
         var currentUser = userSecurityUtils.getCurrentUser();
 
-        validateEnrollment(currentUser.getId(), request.getCourseId());
+        userCourseServiceUtils.validateEnrollment(currentUser.getId(), request.getCourseId());
 
         Optional<User> requestUser = userRepository.findById(currentUser.getId());
         Optional<Course> requestCourse = courseRepository.findById(request.getCourseId());
@@ -115,11 +105,11 @@ public class UserCourseServiceImpl implements IUserCourseService {
         if (request.getSort() != null) {
             userCourseServiceUtils.validateSortFields(request.getSort());
         }
-        Pageable pageable = PageRequest.of(request.getPage() - 1, request.getLimit(), userCourseServiceUtils.createChapterSort(request.getSort()));
+        Pageable pageable = PageRequest.of(request.getPage() - 1, request.getLimit(), userCourseServiceUtils.createUserCourseSort(request.getSort()));
 
         log.info(pageable.toString());
 
-        log.info("Searching user enrollments with criteria: {}", request.toString());
+        log.info("Searching user enrollments with criteria: {}", request);
 
         Page<UserCourse> userCoursesPage = userCourseRepository.searchUserEnrollments(
                 currentUser.getId(),
