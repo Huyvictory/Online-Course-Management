@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 public class CourseRatingDTOs {
@@ -30,6 +31,8 @@ public class CourseRatingDTOs {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class CourseRatingUpdateDTO {
+        @NotNull(message = "Id course rating is required")
+        private Long id;
 
         @NotNull(message = "Course ID is required")
         private Long courseId;
@@ -38,12 +41,19 @@ public class CourseRatingDTOs {
         private String reviewText;
     }
 
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class CourseRatingResponseDTO {
         private Long id;
         private Long userId;
+        private String reviewerName;
         private Long courseId;
         private Integer rating;
         private String reviewText;
+        private LocalDateTime createdAt;
+        private LocalDateTime updatedAt;
+        private LocalDateTime deletedAt;
     }
 
     @EqualsAndHashCode(callSuper = true)

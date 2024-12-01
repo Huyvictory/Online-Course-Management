@@ -1,10 +1,14 @@
 package com.online.course.management.project.service.impl;
 
 import com.online.course.management.project.dto.CourseRatingDTOs;
+import com.online.course.management.project.entity.Course;
 import com.online.course.management.project.entity.CourseRating;
+import com.online.course.management.project.entity.User;
 import com.online.course.management.project.exception.business.ForbiddenException;
+import com.online.course.management.project.exception.business.ResourceNotFoundException;
 import com.online.course.management.project.mapper.CourseRatingMapper;
 import com.online.course.management.project.repository.ICourseRatingRepository;
+import com.online.course.management.project.repository.ICourseRepository;
 import com.online.course.management.project.service.interfaces.ICourseRatingService;
 import com.online.course.management.project.utils.courserating.CourseRatingServiceUtils;
 import com.online.course.management.project.utils.user.UserSecurityUtils;
@@ -24,17 +28,20 @@ public class CourseRatingServiceImpl implements ICourseRatingService {
     private final CourseRatingMapper courseRatingMapper;
     private final UserSecurityUtils userSecurityUtils;
     private final CourseRatingServiceUtils courseRatingServiceUtils;
+    private final ICourseRepository courseRepository;
 
     @Autowired
     public CourseRatingServiceImpl(
             ICourseRatingRepository courseRatingRepository,
             CourseRatingMapper courseRatingMapper,
             UserSecurityUtils userSecurityUtils,
-            CourseRatingServiceUtils courseRatingServiceUtils) {
+            CourseRatingServiceUtils courseRatingServiceUtils,
+            ICourseRepository courseRepository) {
         this.courseRatingRepository = courseRatingRepository;
         this.courseRatingMapper = courseRatingMapper;
         this.userSecurityUtils = userSecurityUtils;
         this.courseRatingServiceUtils = courseRatingServiceUtils;
+        this.courseRepository = courseRepository;
     }
 
     @Override
@@ -48,7 +55,14 @@ public class CourseRatingServiceImpl implements ICourseRatingService {
             throw new IllegalArgumentException("User already rated this course");
         }
 
-        CourseRating courseRatingToCreate = courseRatingMapper.toEntity(request);
+        User user = userSecurityUtils.getCurrentUser();
+        Course course = courseRepository.findById(request.getCourseId()).orElseThrow(() -> new IllegalArgumentException("Course not found"));
+
+        CourseRating courseRatingToCreate = new CourseRating();
+        courseRatingToCreate.setUser(user);
+        courseRatingToCreate.setCourse(course);
+        courseRatingToCreate.setRating(request.getRating());
+        courseRatingToCreate.setReviewText(request.getReviewText());
 
         courseRatingRepository.save(courseRatingToCreate);
 
@@ -63,14 +77,12 @@ public class CourseRatingServiceImpl implements ICourseRatingService {
 
         var currentUser = userSecurityUtils.getCurrentUser();
 
-        if (courseRatingRepository.existsByUserIdAndCourseId(currentUser.getId(), request.getCourseId())) {
-            throw new IllegalArgumentException("User already rated this course");
-        }
+        CourseRating courseRating = courseRatingRepository
+                .findByUserIdAndCourseIdAndId(currentUser.getId(), request.getCourseId(), request.getId())
+                .orElse(null);
 
-        CourseRating courseRating = courseRatingRepository.findByUserIdAndCourseId(currentUser.getId(), request.getCourseId()).get();
-
-        if (!currentUser.getId().equals(courseRating.getUser().getId())) {
-            throw new ForbiddenException("User is not the owner of this rating");
+        if (courseRating == null) {
+            throw new ResourceNotFoundException("Course rating not found");
         }
 
         if (request.getRating() != null) {
@@ -113,7 +125,7 @@ public class CourseRatingServiceImpl implements ICourseRatingService {
     public void deleteCourseRating(Long id) {
         var currentUser = userSecurityUtils.getCurrentUser();
 
-        if (courseRatingRepository.existsById(id)) {
+        if (!courseRatingRepository.existsById(id)) {
             throw new IllegalArgumentException("Rating not found");
         }
 
@@ -121,6 +133,10 @@ public class CourseRatingServiceImpl implements ICourseRatingService {
 
         if (!currentUser.getId().equals(courseRatingToDelete.getUser().getId())) {
             throw new ForbiddenException("User is not the owner of this rating");
+        }
+
+        if (courseRatingToDelete.getDeletedAt() != null) {
+            throw new IllegalArgumentException("Rating is already deleted");
         }
 
         courseRatingRepository.softDeleteRating(id);

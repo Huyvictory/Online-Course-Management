@@ -4,11 +4,12 @@ import com.online.course.management.project.entity.CourseRating;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Repository
@@ -20,16 +21,26 @@ public interface ICourseRatingRepository extends JpaRepository<CourseRating, Lon
     /**
      * Find user's rating for a course
      */
-    Optional<CourseRating> findByUserIdAndCourseId(Long userId, Long courseId);
+    @Query(value = """
+            SELECT cr.*
+            FROM course_ratings cr
+            WHERE cr.user_id = :userId
+            AND cr.course_id = :courseId
+            AND cr.id = :id
+            """, nativeQuery = true)
+    Optional<CourseRating> findByUserIdAndCourseIdAndId(@Param("userId") Long userId, @Param("courseId") Long courseId, @Param("id") Long id);
 
     /**
      * Check if user has already rated a course
      */
     boolean existsByUserIdAndCourseId(Long userId, Long courseId);
 
+    boolean existsById(Long id);
+
     /**
      * Soft delete a rating
      */
+    @Modifying
     @Query("UPDATE CourseRating cr SET cr.deletedAt = CURRENT_TIMESTAMP WHERE cr.id = :id")
     void softDeleteRating(@Param("id") Long id);
 
@@ -84,5 +95,5 @@ public interface ICourseRatingRepository extends JpaRepository<CourseRating, Lon
             GROUP BY cr.rating
             ORDER BY cr.rating DESC
             """)
-    List<Object[]> getRatingDistribution(@Param("courseId") Long courseId);
+    Map<Object, Object> getRatingDistribution(@Param("courseId") Long courseId);
 }
