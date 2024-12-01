@@ -1,7 +1,6 @@
 package com.online.course.management.project.utils.user;
 
 import com.online.course.management.project.entity.User;
-import com.online.course.management.project.exception.business.ForbiddenException;
 import com.online.course.management.project.exception.business.ResourceNotFoundException;
 import com.online.course.management.project.exception.business.UnauthorizedException;
 import com.online.course.management.project.repository.IUserRepository;
@@ -23,9 +22,7 @@ public class UserSecurityUtils {
 
     public CustomUserDetails getCurrentUserDetails() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new UnauthorizedException("User is not authenticated");
-        }
+
         return (CustomUserDetails) authentication.getPrincipal();
     }
 
@@ -38,17 +35,5 @@ public class UserSecurityUtils {
     public boolean isAdmin() {
         return getCurrentUserDetails().getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-    }
-
-    public boolean hasRole(String role) {
-        return getCurrentUserDetails().getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_" + role));
-    }
-
-    public void validateUserAccess(Long userId) {
-        CustomUserDetails currentUser = getCurrentUserDetails();
-        if (!currentUser.getId().equals(userId) && !isAdmin()) {
-            throw new ForbiddenException("You don't have permission to access this resource");
-        }
     }
 }

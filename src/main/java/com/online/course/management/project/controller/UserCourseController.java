@@ -8,7 +8,6 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,7 +25,7 @@ public class UserCourseController {
     }
 
     @PostMapping(UserCourseConstants.ENROLL_PATH)
-    public ResponseEntity<UserCourseDTOs.UserCourseResponseDto> enrollInCourse(@Valid @RequestBody UserCourseDTOs.EnrollCourseRequestDto request) {
+    public ResponseEntity<UserCourseDTOs.UserCourseResponseDto> enrollInCourse(@Valid @RequestBody UserCourseDTOs.UserCourseRequestDTO request) {
 
         var registeredUserCourse = userCourseService.enrollInCourse(request);
 
@@ -34,9 +33,9 @@ public class UserCourseController {
     }
 
     @PostMapping(UserCourseConstants.ENROLLMENT_DETAILS_PATH)
-    public ResponseEntity<UserCourseDTOs.UserCourseResponseDto> getEnrollmentDetails(@Valid @RequestBody UserCourseDTOs.EnrollCourseRequestDto request) {
+    public ResponseEntity<UserCourseDTOs.UserCourseResponseDto> getEnrollmentDetails(@Valid @RequestBody UserCourseDTOs.UserCourseRequestDTO request) {
 
-        var enrollmentDetails = userCourseService.getEnrollmentDetails(request.getUserId(), request.getCourseId());
+        var enrollmentDetails = userCourseService.getEnrollmentDetails(request.getCourseId());
 
         return ResponseEntity.ok(enrollmentDetails);
     }
@@ -44,7 +43,7 @@ public class UserCourseController {
     @PostMapping(UserCourseConstants.SEARCH_PATH)
     public ResponseEntity<PaginationDto.PaginationResponseDto<UserCourseDTOs.UserCourseResponseDto>> searchUserEnrollments(@Valid @RequestBody UserCourseDTOs.UserCourseSearchDTO request) {
 
-        var searchUserEnrollmentsPage = userCourseService.searchUserEnrollments(request.getUserId(), request);
+        var searchUserEnrollmentsPage = userCourseService.searchUserEnrollments(request);
 
         var response = new PaginationDto.PaginationResponseDto<>(
                 searchUserEnrollmentsPage.getContent(),
@@ -57,14 +56,14 @@ public class UserCourseController {
     }
 
     @PutMapping(UserCourseConstants.DROP_PATH)
-    public ResponseEntity<String> dropEnrollment(@Valid @RequestBody UserCourseDTOs.EnrollCourseRequestDto request) {
-        userCourseService.dropEnrollment(request.getUserId(), request.getCourseId());
+    public ResponseEntity<String> dropEnrollment(@Valid @RequestBody UserCourseDTOs.UserCourseRequestDTO request) {
+        userCourseService.dropEnrollment(request.getCourseId());
         return ResponseEntity.ok("Enrollment dropped successfully");
     }
 
     @PutMapping(UserCourseConstants.RESUME_PATH)
-    public ResponseEntity<String> resumeEnrollment(@Valid @RequestBody UserCourseDTOs.EnrollCourseRequestDto request) {
-        userCourseService.resumeEnrollment(request.getUserId(), request.getCourseId());
+    public ResponseEntity<String> resumeEnrollment(@Valid @RequestBody UserCourseDTOs.UserCourseRequestDTO request) {
+        userCourseService.resumeEnrollment(request.getCourseId());
         return ResponseEntity.ok("Enrollment resumed successfully");
     }
 }

@@ -40,6 +40,8 @@ public abstract class UserCourseMapper {
     @Mapping(target = "completedLessons", constant = "0")
     @Mapping(target = "totalLessons", constant = "0")
     @Mapping(target = "averageRating", constant = "0.0")
+    @Mapping(target = "averageCompletionTime", constant = "0.0")
+    @Mapping(target = "completionRate", constant = "0.0")
     abstract UserCourseDTOs.UserCourseResponseDto toBaseDto(UserCourse userCourse);
 
     // Add a non-abstract method to handle the full mapping including statistics
@@ -76,11 +78,16 @@ public abstract class UserCourseMapper {
             // Get average rating from course ratings
             double avgRating = userCourseRepository.getAverageCourseRating(userCourse.getCourse().getId());
 
+            double avgCompletionTime = calculateAverageCompletionTime(userCourse);
+            double completionRate = calculateCompletionRate(userCourse);
+
             // Set the statistics
             dto.setProcessingLessons(processingCount);
             dto.setCompletedLessons(completedCount);
             dto.setTotalLessons(totalLessons);
             dto.setAverageRating(avgRating);
+            dto.setAverageCompletionTime(avgCompletionTime);
+            dto.setCompletionRate(completionRate);
 
             log.debug("Statistics mapped - Processing: {}, Completed: {}, Total: {}, Rating: {}",
                     processingCount, completedCount, totalLessons, avgRating);
@@ -102,13 +109,6 @@ public abstract class UserCourseMapper {
     @Mapping(target = "completionDate", ignore = true)
     @Mapping(target = "status", constant = "ENROLLED")
     public abstract UserCourse toEntity(User user, Course course);
-
-
-    //    @Mapping(target = "totalInProgress", source = "processing_lessons", ignore = true)
-//    @Mapping(target = "totalCompleted", source = "completed_lessons", ignore = true)
-    @Mapping(target = "averageCompletionTime", expression = "java(calculateAverageCompletionTime(userCourse))")
-    @Mapping(target = "completionRate", expression = "java(calculateCompletionRate(userCourse))")
-    public abstract UserCourseDTOs.UserCourseStatisticsDTO toStatisticsDto(UserCourse userCourse);
 
     protected Double calculateAverageCompletionTime(UserCourse userCourse) {
         if (userCourse.getCompletionDate() == null || userCourse.getEnrollmentDate() == null) {

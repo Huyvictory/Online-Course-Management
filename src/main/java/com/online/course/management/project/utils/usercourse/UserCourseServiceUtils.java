@@ -47,7 +47,7 @@ public class UserCourseServiceUtils {
 
     public Sort createChapterSort(Map<String, String> sortParams) {
         if (sortParams == null || sortParams.isEmpty()) {
-            return Sort.by(Sort.Direction.ASC, "enrollment_date");
+            return Sort.by(Sort.Direction.DESC, "enrollment_date");
         }
 
         List<Sort.Order> orders = sortParams.entrySet().stream()
