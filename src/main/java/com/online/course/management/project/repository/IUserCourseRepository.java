@@ -160,4 +160,35 @@ public interface IUserCourseRepository extends JpaRepository<UserCourse, Long>, 
             AND course_id = :courseId
             """, nativeQuery = true)
     void resumeRelevantProgress(@Param("userId") Long userId, @Param("courseId") Long courseId);
+
+    @Query(value = """
+    WITH enrollment_check AS (
+        SELECT 
+            CASE 
+                WHEN EXISTS (
+                    SELECT 1 FROM user_courses 
+                    WHERE user_id = :userId AND course_id = :courseId
+                ) THEN 'ALREADY_ENROLLED'
+                WHEN NOT EXISTS (
+                    SELECT 1 FROM lessons l 
+                    JOIN chapters ch ON l.chapter_id = ch.id
+                    WHERE ch.course_id = :courseId 
+                    AND l.deleted_at IS NULL 
+                    AND ch.deleted_at IS NULL
+                ) THEN 'NO_LESSONS'
+                WHEN NOT EXISTS (
+                    SELECT 1 FROM courses 
+                    WHERE id = :courseId 
+                    AND deleted_at IS NULL
+                    AND status != 'ARCHIVED'
+                            ) THEN 'INVALID_COURSE'
+                            ELSE 'OK'
+                        END as status
+                )
+                SELECT status FROM enrollment_check
+            """, nativeQuery = true)
+    String validateEnrollmentEligibility(
+            @Param("userId") Long userId,
+            @Param("courseId") Long courseId
+    );
 }

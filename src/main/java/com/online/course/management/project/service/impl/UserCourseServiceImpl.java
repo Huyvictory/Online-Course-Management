@@ -56,15 +56,23 @@ public class UserCourseServiceImpl implements IUserCourseService {
         this.userSecurityUtils = userSecurityUtils;
     }
 
+    private void validateEnrollment(Long userId, Long courseId) {
+        // Perform all validations in one query
+        String status = userCourseRepository.validateEnrollmentEligibility(userId, courseId);
+        switch (status) {
+            case "ALREADY_ENROLLED" -> throw new InvalidRequestException("User is already enrolled in this course");
+            case "NO_LESSONS" -> throw new InvalidRequestException("Course has no lessons");
+            case "INVALID_COURSE" -> throw new ResourceNotFoundException("Course not found or is not available");
+        }
+    }
+
     @Override
     @Transactional
     public UserCourseDTOs.UserCourseResponseDto enrollInCourse(UserCourseDTOs.UserCourseRequestDTO request) {
 
         var currentUser = userSecurityUtils.getCurrentUser();
 
-        if (userCourseRepository.existsByUserIdAndCourseId(currentUser.getId(), request.getCourseId())) {
-            throw new InvalidRequestException("User is already enrolled in this course");
-        }
+        validateEnrollment(currentUser.getId(), request.getCourseId());
 
         Optional<User> requestUser = userRepository.findById(currentUser.getId());
         Optional<Course> requestCourse = courseRepository.findById(request.getCourseId());
@@ -72,11 +80,6 @@ public class UserCourseServiceImpl implements IUserCourseService {
         if (requestUser.isEmpty()) {
             throw new InvalidRequestException("User not found");
         }
-
-        if (requestCourse.isEmpty()) {
-            throw new InvalidRequestException("Course not found");
-        }
-
         // Convert payload request to entity
         UserCourse convertedUserCourse = userCourseMapper.toEntity(requestUser.get(), requestCourse.get());
 
