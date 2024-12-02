@@ -63,5 +63,13 @@ public class CourseRatingController {
         return ResponseEntity.ok("Course rating deleted successfully");
     }
 
+    @PostMapping(CourseRatingConstants.GET_DISTRIBUTION_PATH)
+    public ResponseEntity<CourseRatingDTOs.RatingDistributionDTO> getCourseRatingDistribution(@Valid @PathVariable long id) {
+
+        var response = courseRatingService.getCourseRatingDistribution(id);
+
+        return ResponseEntity.ok(response);
+    }
+
 
 }

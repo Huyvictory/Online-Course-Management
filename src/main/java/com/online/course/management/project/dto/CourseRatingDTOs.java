@@ -70,4 +70,12 @@ public class CourseRatingDTOs {
 
         private Map<String, String> sort;
     }
+
+    @Builder
+    @Data
+    @AllArgsConstructor
+    public static class RatingDistributionDTO {
+        private Map<Long, Long> distribution;
+        private Map<Long, Double> percentages;
+    }
 }

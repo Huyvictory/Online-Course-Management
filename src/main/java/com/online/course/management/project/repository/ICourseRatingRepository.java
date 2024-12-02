@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -74,26 +75,18 @@ public interface ICourseRatingRepository extends JpaRepository<CourseRating, Lon
     );
 
     /**
-     * Get average rating for a course (excluding deleted ratings)
-     */
-    @Query("""
-            SELECT COALESCE(AVG(cr.rating), 0.0)
-            FROM CourseRating cr
-            WHERE cr.course.id = :courseId
-            AND cr.deletedAt IS NULL
-            """)
-    Double getAverageRating(@Param("courseId") Long courseId);
-
-    /**
      * Get count of ratings by star value (1-5) for a course
      */
     @Query("""
-            SELECT cr.rating as stars, COUNT(cr) as count
-            FROM CourseRating cr
-            WHERE cr.course.id = :courseId
-            AND cr.deletedAt IS NULL
-            GROUP BY cr.rating
-            ORDER BY cr.rating DESC
+            select new map(
+                    CAST(cr.rating as long ) as stars,
+                    CAST(count(cr) as long ) as count 
+                )
+                from CourseRating cr
+                where cr.course.id = :courseId
+                and cr.deletedAt is null
+                group by cr.rating
+                order by cr.rating desc
             """)
-    Map<Object, Object> getRatingDistribution(@Param("courseId") Long courseId);
+    List<Map<Long, Long>> getRatingDistribution(@Param("courseId") Long courseId);
 }

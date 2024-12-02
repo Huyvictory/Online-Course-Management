@@ -143,4 +143,18 @@ public class CourseRatingServiceImpl implements ICourseRatingService {
 
         log.info("Deleted course rating with ID: {}", id);
     }
+
+    @Override
+    @Transactional
+    public CourseRatingDTOs.RatingDistributionDTO getCourseRatingDistribution(Long id) {
+
+        var courseRatingDistribution = courseRatingServiceUtils.getRatingDistributionFormatted(id);
+
+        var courseRatingDistributionPercentage = courseRatingServiceUtils.getRatingPercentages(id);
+
+        return new CourseRatingDTOs.RatingDistributionDTO(
+                courseRatingDistribution,
+                courseRatingDistributionPercentage
+        );
+    }
 }

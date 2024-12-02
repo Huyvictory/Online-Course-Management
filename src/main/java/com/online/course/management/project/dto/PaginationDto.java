@@ -35,6 +35,5 @@ public class PaginationDto {
         private int currentPage;
         private int limit;
         private long total;
-
     }
 }
