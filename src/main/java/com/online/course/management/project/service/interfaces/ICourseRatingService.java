@@ -12,4 +12,6 @@ public interface ICourseRatingService {
     Page<CourseRatingDTOs.CourseRatingResponseDTO> getCourseRatings(CourseRatingDTOs.CourseRatingSearchDTO request);
 
     void deleteCourseRating(Long id);
+
+    CourseRatingDTOs.RatingDistributionDTO getCourseRatingDistribution(Long id);
 }
