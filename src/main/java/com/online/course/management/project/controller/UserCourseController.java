@@ -3,6 +3,7 @@ package com.online.course.management.project.controller;
 import com.online.course.management.project.constants.UserCourseConstants;
 import com.online.course.management.project.dto.PaginationDto;
 import com.online.course.management.project.dto.UserCourseDTOs;
+import com.online.course.management.project.security.RequiredRole;
 import com.online.course.management.project.service.interfaces.IUserCourseService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,7 @@ public class UserCourseController {
         this.userCourseService = userCourseService;
     }
 
+    @RequiredRole({"ADMIN", "INSTRUCTOR", "USER"})
     @PostMapping(UserCourseConstants.ENROLL_PATH)
     public ResponseEntity<UserCourseDTOs.UserCourseResponseDto> enrollInCourse(@Valid @RequestBody UserCourseDTOs.UserCourseRequestDTO request) {
 
@@ -32,6 +34,7 @@ public class UserCourseController {
         return ResponseEntity.ok(registeredUserCourse);
     }
 
+    @RequiredRole({"ADMIN", "INSTRUCTOR", "USER"})
     @PostMapping(UserCourseConstants.ENROLLMENT_DETAILS_PATH)
     public ResponseEntity<UserCourseDTOs.UserCourseResponseDto> getEnrollmentDetails(@Valid @RequestBody UserCourseDTOs.UserCourseRequestDTO request) {
 
@@ -40,6 +43,7 @@ public class UserCourseController {
         return ResponseEntity.ok(enrollmentDetails);
     }
 
+    @RequiredRole({"ADMIN", "INSTRUCTOR", "USER"})
     @PostMapping(UserCourseConstants.SEARCH_PATH)
     public ResponseEntity<PaginationDto.PaginationResponseDto<UserCourseDTOs.UserCourseResponseDto>> searchUserEnrollments(@Valid @RequestBody UserCourseDTOs.UserCourseSearchDTO request) {
 
@@ -55,12 +59,14 @@ public class UserCourseController {
         return ResponseEntity.ok(response);
     }
 
+    @RequiredRole({"ADMIN", "INSTRUCTOR", "USER"})
     @PutMapping(UserCourseConstants.DROP_PATH)
     public ResponseEntity<String> dropEnrollment(@Valid @RequestBody UserCourseDTOs.UserCourseRequestDTO request) {
         userCourseService.dropEnrollment(request.getCourseId());
         return ResponseEntity.ok("Enrollment dropped successfully");
     }
 
+    @RequiredRole({"ADMIN", "INSTRUCTOR", "USER"})
     @PutMapping(UserCourseConstants.RESUME_PATH)
     public ResponseEntity<String> resumeEnrollment(@Valid @RequestBody UserCourseDTOs.UserCourseRequestDTO request) {
         userCourseService.resumeEnrollment(request.getCourseId());
