@@ -2,6 +2,7 @@ package com.online.course.management.project.controller;
 
 import com.online.course.management.project.constants.UserLessonProgressConstants;
 import com.online.course.management.project.dto.UserLessonProgressDtos;
+import com.online.course.management.project.security.RequiredRole;
 import com.online.course.management.project.service.interfaces.IUserLessonProgressService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,7 @@ public class UserLessonProgressController {
     }
 
     @PostMapping(UserLessonProgressConstants.START_LEARNING_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR", "USER"})
     public ResponseEntity<UserLessonProgressDtos.LessonProgressResponseDTO> startLearningLesson(@Valid @RequestBody UserLessonProgressDtos.UpdateStatusLessonProgressDTO request) {
         var response = userLessonProgressService.startLearningLesson(request);
 
@@ -30,6 +32,7 @@ public class UserLessonProgressController {
     }
 
     @PostMapping(UserLessonProgressConstants.COMPLETE_LEARNING_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR", "USER"})
     public ResponseEntity<UserLessonProgressDtos.LessonProgressResponseDTO> completeLearningLesson(@Valid @RequestBody UserLessonProgressDtos.UpdateStatusLessonProgressDTO request) {
 
         var response = userLessonProgressService.completeLearningLesson(request);
