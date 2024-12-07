@@ -4,12 +4,9 @@ import com.online.course.management.project.enums.CourseStatus;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -65,8 +62,10 @@ public class CourseDTOS {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class UpdateCourseRequestDTO {
+        @NotEmpty(message = "Title must not be empty")
         private String title;
 
+        @NotEmpty(message = "Title must not be empty")
         private String description;
 
         private CourseStatus status;

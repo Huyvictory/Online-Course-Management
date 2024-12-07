@@ -215,6 +215,19 @@ public class CourseServiceImplTest {
     }
 
     @Test
+    void archiveCourse_AlreadyArchived_ThrowsException() {
+        // Arrange
+        testCourse.setStatus(CourseStatus.ARCHIVED);
+        when(courseServiceUtils.getCourseWithValidation(anyLong())).thenReturn(testCourse);
+
+        // Act & Assert
+        assertThrows(InvalidRequestException.class,
+                () -> courseService.archiveCourse(1L));
+
+        verify(courseRepository, never()).archiveCourse(anyLong());
+    }
+
+    @Test
     void archiveCourse_NotFound_ThrowsException() {
         // Arrange
         when(courseServiceUtils.getCourseWithValidation(anyLong()))
@@ -229,6 +242,7 @@ public class CourseServiceImplTest {
     @Test
     void unarchiveCourse_Success() {
         // Arrange
+        testCourse.setStatus(CourseStatus.ARCHIVED);
         when(courseServiceUtils.getCourseWithValidation(anyLong())).thenReturn(testCourse);
         doNothing().when(courseRepository).unarchiveCourse(anyLong());
 
@@ -237,6 +251,19 @@ public class CourseServiceImplTest {
 
         // Assert
         verify(courseRepository).unarchiveCourse(1L);
+    }
+
+    @Test
+    void unmarchiveCourse_UnarchivedCourse_ThrowsException() {
+        // Arrange
+        testCourse.setStatus(CourseStatus.PUBLISHED);
+        when(courseServiceUtils.getCourseWithValidation(anyLong())).thenReturn(testCourse);
+
+        // Act & Assert
+        assertThrows(InvalidRequestException.class,
+                () -> courseService.unarchiveCourse(1L));
+
+        verify(courseRepository, never()).archiveCourse(anyLong());
     }
 
     @Test

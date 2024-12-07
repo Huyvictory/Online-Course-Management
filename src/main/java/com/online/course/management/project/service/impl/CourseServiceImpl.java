@@ -6,7 +6,6 @@ import com.online.course.management.project.entity.Category;
 import com.online.course.management.project.entity.Course;
 import com.online.course.management.project.entity.User;
 import com.online.course.management.project.enums.CourseStatus;
-import com.online.course.management.project.exception.business.ForbiddenException;
 import com.online.course.management.project.exception.business.InvalidRequestException;
 import com.online.course.management.project.exception.business.ResourceNotFoundException;
 import com.online.course.management.project.mapper.CourseMapper;
@@ -127,7 +126,7 @@ public class CourseServiceImpl implements ICourseService {
         Course course = courseServiceUtils.getCourseWithValidation(id);
 
         if (course.getStatus() == CourseStatus.ARCHIVED) {
-            throw new ForbiddenException("Course is already archived");
+            throw new InvalidRequestException("Course is already archived");
         }
 
         courseRepository.archiveCourse(id);
@@ -144,7 +143,7 @@ public class CourseServiceImpl implements ICourseService {
         Course course = courseServiceUtils.getCourseWithValidation(id);
 
         if (course.getStatus() != CourseStatus.ARCHIVED) {
-            throw new ForbiddenException("Course is not archived");
+            throw new InvalidRequestException("Course is not archived");
         }
 
         courseRepository.unarchiveCourse(id);
