@@ -10,7 +10,6 @@ import com.online.course.management.project.security.JwtUtil;
 import com.online.course.management.project.security.RequiredRole;
 import com.online.course.management.project.service.interfaces.IUserService;
 import com.online.course.management.project.utils.user.UserControllerUtils;
-import com.online.course.management.project.utils.user.UserServiceUtils;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,6 +68,7 @@ public class UserController {
     }
 
     @PutMapping(UserConstants.PROFILE_PATH)
+    @RequiredRole({"ADMIN", "INSTRUCTOR", "USER"})
     public ResponseEntity<UserDTOs.UserResponseDto> updateUserProfile(@Valid @RequestBody UserDTOs.UpdateProfileDto updateProfileDto) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();

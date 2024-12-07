@@ -19,8 +19,6 @@ public class UserDTOs {
         @NotBlank
         @Size(min = 6, max = 40, message = "Password must be between 6 and 40 characters")
         private String password;
-
-
     }
 
     @Data
