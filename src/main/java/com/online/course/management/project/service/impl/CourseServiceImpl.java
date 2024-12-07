@@ -6,6 +6,7 @@ import com.online.course.management.project.entity.Category;
 import com.online.course.management.project.entity.Course;
 import com.online.course.management.project.entity.User;
 import com.online.course.management.project.enums.CourseStatus;
+import com.online.course.management.project.exception.business.ForbiddenException;
 import com.online.course.management.project.exception.business.InvalidRequestException;
 import com.online.course.management.project.exception.business.ResourceNotFoundException;
 import com.online.course.management.project.mapper.CourseMapper;
@@ -123,8 +124,15 @@ public class CourseServiceImpl implements ICourseService {
     @CacheEvict(value = "courses", key = "#id")
     public void archiveCourse(Long id) {
         log.info("Archiving course with id: {}", id);
-        courseServiceUtils.getCourseWithValidation(id);
+        Course course = courseServiceUtils.getCourseWithValidation(id);
+
+        if (course.getStatus() == CourseStatus.ARCHIVED) {
+            throw new ForbiddenException("Course is already archived");
+        }
+
         courseRepository.archiveCourse(id);
+        courseRepository.archiveFollowingChapters(id);
+        courseRepository.archiveFollowingLessons(id);
     }
 
     @Override
@@ -132,8 +140,16 @@ public class CourseServiceImpl implements ICourseService {
     @CacheEvict(value = "courses", key = "#id")
     public void unarchiveCourse(Long id) {
         log.info("Unarchiving course with id: {}", id);
-        courseServiceUtils.getCourseWithValidation(id);
+
+        Course course = courseServiceUtils.getCourseWithValidation(id);
+
+        if (course.getStatus() != CourseStatus.ARCHIVED) {
+            throw new ForbiddenException("Course is not archived");
+        }
+
         courseRepository.unarchiveCourse(id);
+        courseRepository.unarchiveFollowingChapters(id);
+        courseRepository.unarchiveFollowingLessons(id);
     }
 
     @Override
