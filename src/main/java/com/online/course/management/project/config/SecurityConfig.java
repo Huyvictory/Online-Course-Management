@@ -68,7 +68,22 @@ public class SecurityConfig {
                     logger.info("Session management set to STATELESS");
                 })
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/api/v1/users/register", "/api/v1/users/login", "/error", "/api/v1/courses/*").permitAll()
+                        .requestMatchers(
+                                "/api/v1/users/register",
+                                "/api/v1/users/login",
+                                "/error",
+                                "/api/v1/courses/*",
+                                "/v3/api-docs",
+                                "/v3/api-docs.yaml",
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/swagger-resources",
+                                "/swagger-resources/**",
+                                "/configuration/ui",
+                                "/configuration/security",
+                                "/webjars/**"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .userDetailsService(userDetailsService)
