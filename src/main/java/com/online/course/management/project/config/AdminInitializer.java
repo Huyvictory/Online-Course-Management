@@ -30,12 +30,12 @@ public class AdminInitializer implements CommandLineRunner {
 
     @Override
     @Transactional
-    public void run(String... args) throws Exception {
+    public void run(String... args) {
         if (!userRepository.existsByEmail("admin@gmail.com")) {
             User adminUser = new User();
             adminUser.setUsername("admin");
             adminUser.setEmail("admin@gmail.com");
-            adminUser.setPasswordHash(passwordEncoder.encode("admin"));
+            adminUser.setPasswordHash(passwordEncoder.encode("adminadmin"));
             adminUser.setRealName("Admin User");
 
             Role adminRole = roleRepository.findByName(RoleType.ADMIN)

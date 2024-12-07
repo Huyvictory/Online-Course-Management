@@ -4,14 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.online.course.management.project.aspect.RoleAuthorizationAspect;
 import com.online.course.management.project.config.SecurityTestConfig;
 import com.online.course.management.project.dto.CourseDTOS;
-import com.online.course.management.project.entity.Role;
-import com.online.course.management.project.entity.User;
 import com.online.course.management.project.enums.CourseStatus;
-import com.online.course.management.project.enums.RoleType;
 import com.online.course.management.project.exception.business.ForbiddenException;
 import com.online.course.management.project.exception.business.ResourceNotFoundException;
 import com.online.course.management.project.filter.JwtAuthenticationFilter;
-import com.online.course.management.project.security.CustomUserDetails;
 import com.online.course.management.project.security.annotation.WithMockCustomUser;
 import com.online.course.management.project.service.interfaces.ICourseService;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,13 +20,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -101,56 +91,8 @@ class CourseControllerTest {
         updateCourseRequest.setStatus(CourseStatus.PUBLISHED);
     }
 
-    private ResultActions performRequestWithRole(String roleType, String method, String url, Object content) throws Exception {
-        // Create Role entity
-        Role role = new Role();
-        role.setName(RoleType.valueOf(roleType));
-
-        // Create User entity with role
-        User mockUser = new User();
-        mockUser.setId(1L);
-        mockUser.setUsername(roleType.toLowerCase());
-        mockUser.setEmail(roleType.toLowerCase() + "@example.com");
-        mockUser.addRole(role);
-
-        // Create CustomUserDetails
-        CustomUserDetails userDetails = new CustomUserDetails(mockUser);
-
-        // Create Authentication with both principal and authorities
-        Authentication auth = new UsernamePasswordAuthenticationToken(
-                userDetails,
-                null,
-                Collections.singleton(new SimpleGrantedAuthority("ROLE_" + roleType))
-        );
-
-        // Set up SecurityContext
-        SecurityContext securityContext = mock(SecurityContext.class);
-        when(securityContext.getAuthentication()).thenReturn(auth);
-        SecurityContextHolder.setContext(securityContext);
-
-        // Perform request based on method type
-        switch (method.toUpperCase()) {
-            case "POST":
-                return mockMvc.perform(post(url)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(content != null ? objectMapper.writeValueAsString(content) : ""));
-            case "PUT":
-                return mockMvc.perform(put(url)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(content != null ? objectMapper.writeValueAsString(content) : ""));
-            case "PATCH":
-                return mockMvc.perform(patch(url)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(content != null ? objectMapper.writeValueAsString(content) : ""));
-            case "DELETE":
-                return mockMvc.perform(delete(url));
-            default:
-                return mockMvc.perform(get(url));
-        }
-    }
-
     @Test
-    @WithMockCustomUser(roles = {"ADMIN"})
+    @WithMockCustomUser()
     void createCourse_Success() throws Exception {
         when(courseService.createCourse(any(CourseDTOS.CreateCourseRequestDTO.class)))
                 .thenReturn(testCourseResponse);
@@ -417,7 +359,7 @@ class CourseControllerTest {
     }
 
     @Test
-    @WithMockCustomUser(roles = {"ADMIN"})
+    @WithMockCustomUser()
     void updateCourse_ValidationError() throws Exception {
         updateCourseRequest.setTitle(""); // Empty title should fail validation
 
@@ -427,7 +369,7 @@ class CourseControllerTest {
                 .andDo(print())
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Validation failed"))
-                .andExpect(jsonPath("$.errors[0]").value("title: Title is required"));
+                .andExpect(jsonPath("$.errors[0]").value("title: Title must not be empty"));
 
         verify(courseService, never()).updateCourse(any(), any());
     }
@@ -444,7 +386,7 @@ class CourseControllerTest {
     }
 
     @Test
-    @WithMockCustomUser(roles = {"ADMIN"})
+    @WithMockCustomUser()
     void archiveCourse_NotFound() throws Exception {
         doThrow(new ResourceNotFoundException("Course not found"))
                 .when(courseService).archiveCourse(999L);
