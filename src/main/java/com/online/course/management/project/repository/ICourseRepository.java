@@ -182,6 +182,30 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
 
     @Modifying
     @Query(value = """
+            UPDATE chapters
+            SET status = 'ARCHIVED',
+                deleted_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE course_id = :courseId
+            """, nativeQuery = true)
+    void archiveFollowingChapters(@Param("courseId") Long courseId);
+
+    @Modifying
+    @Query(value = """
+            UPDATE lessons
+            SET status = 'ARCHIVED',
+                deleted_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE chapter_id IN (
+                SELECT id FROM chapters 
+                WHERE course_id = :courseId 
+            )
+            """, nativeQuery = true)
+    void archiveFollowingLessons(@Param("courseId") Long courseId);
+
+
+    @Modifying
+    @Query(value = """
             UPDATE courses
             SET status = 'DRAFT',
                 deleted_at = NULL,
@@ -190,6 +214,29 @@ public interface ICourseRepository extends JpaRepository<Course, Long>, JpaSpeci
             AND status = 'ARCHIVED'
             """, nativeQuery = true)
     void unarchiveCourse(@Param("courseId") Long courseId);
+
+    @Modifying
+    @Query(value = """
+            UPDATE chapters
+            SET status = 'DRAFT',
+                deleted_at = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE course_id = :courseId
+            """, nativeQuery = true)
+    void unarchiveFollowingChapters(@Param("courseId") Long courseId);
+
+    @Modifying
+    @Query(value = """
+            UPDATE lessons
+            SET status = 'DRAFT',
+                deleted_at = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE chapter_id IN (
+                SELECT id FROM chapters 
+                WHERE course_id = :courseId 
+            )
+            """, nativeQuery = true)
+    void unarchiveFollowingLessons(@Param("courseId") Long courseId);
 
     @Modifying
     @Query(value = """

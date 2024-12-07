@@ -78,6 +78,7 @@ public class UserCourseServiceUtils {
             case "ALREADY_ENROLLED" -> throw new InvalidRequestException("User is already enrolled in this course");
             case "NO_LESSONS" -> throw new InvalidRequestException("Course has no lessons");
             case "INVALID_COURSE" -> throw new ResourceNotFoundException("Course not found or is not available");
+            case "DRAFT_COURSE" -> throw new InvalidRequestException("Could not enroll in a draft course");
         }
     }
 }
