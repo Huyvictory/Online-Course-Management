@@ -91,7 +91,7 @@ public class UserCourseServiceImpl implements IUserCourseService {
             throw new ResourceNotFoundException("User or course not found");
         }
 
-        return userCourseMapper.toDto(userCourseRepository.findByUserIdAndCourseId(currentUser.getId(), courseId));
+        return userCourseMapper.toDto(userCourse);
     }
 
     @Override
