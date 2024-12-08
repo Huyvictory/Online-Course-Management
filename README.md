@@ -334,6 +334,7 @@ mvn spring-boot:run
 - Role-based access control
 - Password encryption using BCrypt
 - Input validation and sanitization
+- Spring Security to perform authorization checks for user roles and public endpoints
 
 ## Data Management
 - Soft delete implementation
