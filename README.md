@@ -9,12 +9,10 @@ A comprehensive online course management system built with Spring Boot that enab
 - Multi-role support (Admin, Instructor, User)
 - Secure authentication and authorization
 - Profile management
-- User activity tracking
 
 ### Course Management
 - Course creation and modification
 - Chapter and lesson organization
-- Content versioning
 - Course status management (Draft, Published, Archived)
 - Category management for course organization
 
@@ -26,7 +24,6 @@ A comprehensive online course management system built with Spring Boot that enab
 
 ### Administrative Features
 - User Role management
-- Course approval workflow
 - Content moderation
 - System monitoring and reporting
 
